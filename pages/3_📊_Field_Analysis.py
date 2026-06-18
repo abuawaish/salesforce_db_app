@@ -11,7 +11,7 @@ from collections import Counter
 st.set_page_config(
     page_title="Field Analysis", 
     page_icon="📊", 
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
@@ -162,7 +162,7 @@ if selected_object and selected_object != "-- Select an object to analyze --":
                     stats_df,
                     x="Category",
                     y="Count",
-                    title="Custom, Standard, Required, Unique, Lookup, Formula",
+                    title="Field Stats",
                     color="Category",
                     color_discrete_sequence=px.colors.qualitative.Pastel,
                     text="Count",
