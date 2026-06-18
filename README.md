@@ -2,6 +2,11 @@
 
 A Streamlit-based Salesforce utility for running SOQL queries, inspecting object metadata, and performing inline record edits directly from your browser.
 
+<!-- Badges -->
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit - Live Demo](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://salesforce-db-app.streamlit.app/)
+
+[Live Demo → https://salesforce-db-app.streamlit.app/](https://salesforce-db-app.streamlit.app/)
 ## Overview
 
 This app provides a clean, dark-themed interface for:
@@ -126,3 +131,71 @@ Then open the URL shown in your browser (usually `http://localhost:8501`).
 
 - The app is designed for Salesforce admins, analysts, and developers who need quick query and data editing capabilities without switching to Salesforce UI.
 - The app uses the Salesforce REST API via `simple-salesforce` and requires valid Salesforce credentials.
+
+## Live Demo
+
+You can try the hosted version of this app here:
+
+- https://salesforce-db-app.streamlit.app/ (opens the deployed Streamlit app)
+
+Note: The deployed demo may not include a working Salesforce connection for security reasons — use your own credentials via the `Configuration` page when running locally or in a trusted environment.
+
+## Screenshots
+
+A quick visual tour of the app (click to expand):
+
+<p align="center">
+	<img src="assets/screenshots/home_page.png" alt="Home" width="32%" style="margin:8px;" />
+	<img src="assets/screenshots/connection_page.png" alt="Connection" width="32%" style="margin:8px;" />
+	<img src="assets/screenshots/SOQL_page_1.png" alt="SOQL Editor" width="32%" style="margin:8px;" />
+</p>
+
+<p align="center">
+	<img src="assets/screenshots/SOQL_page_2.png" alt="SOQL Editor - Results" width="32%" style="margin:8px;" />
+	<img src="assets/screenshots/field_analysis_page_1.png" alt="Field Analysis 1" width="32%" style="margin:8px;" />
+	<img src="assets/screenshots/field_analysis_page_2.png" alt="Field Analysis 2" width="32%" style="margin:8px;" />
+</p>
+
+
+## Quick Start
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/abuawaish/salesforce_db_app.git
+cd salesforce_db_app
+```
+
+2. Create and activate a Python virtual environment (recommended):
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # macOS / Linux
+.\.venv\Scripts\Activate.ps1 # Windows PowerShell
+```
+
+3. Install requirements and run the app:
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+## Security & Privacy
+
+- This app requires Salesforce credentials (username, password, and optionally a security token). Do not commit credentials to version control.
+- When deploying, prefer using secure secret storage (environment variables or a secrets manager) rather than embedding credentials in files.
+- If your org enforces IP whitelisting, you can leave the security token blank when your IP is trusted in Salesforce.
+
+## Contributing
+
+Contributions are welcome. Suggested workflow:
+
+1. Fork the repo and create a feature branch.
+2. Add tests for new functionality where appropriate.
+3. Open a pull request describing your changes.
+
+## Contact
+
+If you have questions or want to report issues, open an issue in the GitHub repository or contact the maintainer: abuawaish (GitHub).
+
