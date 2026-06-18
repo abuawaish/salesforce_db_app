@@ -5,249 +5,291 @@ import streamlit as st
 # ------------------------------------------------------------
 st.set_page_config(
     page_title="Salesforce Data Query",
-    page_icon="⛁",
-    layout="centered",
+    page_icon="📊",
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ------------------------------------------------------------
-# Custom CSS (Hero + Sidebar + Dark Theme)
+# FORCE REFRESH: increment this number to bust cache
 # ------------------------------------------------------------
+# v2
+
 st.markdown("""
 <style>
-    /* ========== SIDEBAR STYLING (NEW) ========== */
-    section[data-testid="stSidebar"] {
-        background-color: #080808;
-        border-right: 1px solid #1a1a1a;
-        padding-top: 1.5rem;
-    }
 
-    /* Sidebar navigation container */
-    div[data-testid="stSidebarNav"] {
-        padding: 0 0.75rem;
-    }
+/* ==========================================================
+   GLOBAL VARIABLES
+========================================================== */
+:root {
+    --accent: #FFA500;
+    --bg-black: #000000;
+    --bg-dark: #080808;
+    --bg-card: #0d0d0d;
+    --text-white: #FFFFFF;
+    --text-muted: #AAAAAA;
+    --border: #333333;
+}
 
-    /* Individual nav items */
-    div[data-testid="stSidebarNav"] li a {
-        color: #c0c0c0 !important;
-        font-weight: 500;
-        font-size: 0.95rem;
-        padding: 0.6rem 1rem !important;
-        border-radius: 10px !important;
-        transition: all 0.25s ease;
-        margin: 3px 0;
-        border-left: 3px solid transparent;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        text-decoration: none !important;
-    }
+/* ==========================================================
+   MAIN APP BACKGROUND
+========================================================== */
+.stApp {
+    background-color: var(--bg-black);
+}
 
-    /* Hover effect */
-    div[data-testid="stSidebarNav"] li a:hover {
-        background-color: #161616 !important;
-        color: #FFFFFF !important;
-        border-left-color: #FFA500;
-        transform: translateX(4px);
-    }
+/* ==========================================================
+   SIDEBAR
+========================================================== */
 
-    /* Active page highlight */
-    div[data-testid="stSidebarNav"] li a[aria-current="page"] {
-        background-color: #1a0f00 !important;
-        color: #FFA500 !important;
-        font-weight: 600;
-        border-left: 4px solid #FFA500;
-        box-shadow: inset 0 1px 3px rgba(255, 165, 0, 0.15);
-    }
+section[data-testid="stSidebar"] {
+    background-color: var(--bg-dark) !important;
+    border-right: 1px solid #1a1a1a !important;
+}
 
-    /* Sidebar divider line below header */
-    .sidebar-header-line {
-        border: none;
-        height: 2px;
-        background: linear-gradient(to right, #FFA500, #2a1500, transparent);
-        margin: 0.5rem 0 1.2rem 0;
-        opacity: 0.6;
-    }
+/* ==========================================================
+   SIDEBAR TEXT → Make all text white by default
+========================================================== */
 
-    /* Custom sidebar title */
-    .sidebar-app-title {
-        color: #FFA500;
-        font-size: 1.3rem;
-        font-weight: 700;
-        padding: 0 0.5rem 0 0.5rem;
-        letter-spacing: -0.5px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .sidebar-app-title span {
-        background: rgba(255, 165, 0, 0.12);
-        padding: 2px 10px;
-        border-radius: 20px;
-        font-size: 0.7rem;
-        font-weight: 400;
-        color: #aaa;
-    }
+[data-testid="stSidebar"] * {
+    color: #FFFFFF !important;
+}
 
-    /* ========== HERO SECTION ========== */
-    .hero-container {
-        background-color: #000000;
-        padding: 2rem 2rem 1.2rem 2rem;
-        border-radius: 16px;
-        border-left: 6px solid #FFA500;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 12px rgba(255, 165, 0, 0.10);
-        transition: box-shadow 0.3s ease;
-    }
-    .hero-container:hover {
-        box-shadow: 0 8px 24px rgba(255, 165, 0, 0.20);
-    }
-    .hero-title {
-        color: #FFA500 !important;
-        font-weight: 700 !important;
-        font-size: 2.8rem;
-        margin-bottom: 4px !important;
-        line-height: 1.2;
-    }
-    .hero-sub {
-        color: #ffffff !important;
-        font-size: 1.2rem;
-        margin-bottom: 6px !important;
-        font-weight: 400;
-    }
-    .hero-caption {
-        color: #aaaaaa !important;
-        font-size: 0.9rem;
-        margin-top: 4px;
-    }
+/* But keep the title orange – override the above */
+.sidebar-app-title {
+    color: var(--accent) !important;
+}
+.sidebar-app-title span {
+    color: #FFFFFF !important;   /* version badge white */
+}
 
-    /* ========== FEATURE CARDS ========== */
-    .main-card {
-        background-color: #000000;
-        padding: 24px 20px 20px 20px;
-        border-radius: 16px;
-        box-shadow: 0 4px 12px rgba(255, 165, 0, 0.12);
-        border: 1px solid #333333;
-        height: 100%;
-        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-    }
-    .main-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 12px 28px rgba(255, 165, 0, 0.25);
-        border-color: #FFA500;
-    }
-    .main-card h4 {
-        color: #FFA500 !important;
-        font-weight: 700 !important;
-        margin-top: 0;
-        font-size: 1.2rem;
-    }
-    .main-card p {
-        color: #ffffff !important;
-        font-size: 0.95rem;
-        line-height: 1.5;
-    }
-    .main-card .feature-icon {
-        font-size: 2.8rem;
-        margin-bottom: 12px;
-        display: block;
-    }
-    .main-card strong {
-        color: #FFA500;
-        font-weight: 700;
-    }
+/* ==========================================================
+   NAVIGATION LINKS (already white, but reinforce)
+========================================================== */
 
-    /* ========== STEP CONTAINERS ========== */
-    .step-container {
-        background-color: #000000;
-        padding: 24px 28px;
-        border-radius: 16px;
-        border-left: 6px solid #FFA500;
-        box-shadow: 0 2px 8px rgba(255, 165, 0, 0.08);
-        height: 100%;
-        transition: box-shadow 0.2s ease;
-    }
-    .step-container:hover {
-        box-shadow: 0 8px 20px rgba(255, 165, 0, 0.15);
-    }
-    .step-container h4 {
-        color: #FFA500 !important;
-        font-weight: 700 !important;
-        margin-top: 0;
-        font-size: 1.15rem;
-    }
-    .step-container p {
-        color: #ffffff !important;
-        font-size: 0.95rem;
-        line-height: 1.6;
-        margin-bottom: 0;
-    }
-    .step-container strong {
-        color: #FFA500;
-        font-weight: 700;
-    }
-    .step-container em {
-        color: #dddddd;
-    }
+[data-testid="stSidebarNav"] a {
+    color: #FFFFFF !important;
+    border-radius: 12px !important;
+    padding: 0.75rem 1rem !important;
+    text-decoration: none !important;
+    border-left: 3px solid transparent !important;
+    transition: all .25s ease !important;
+    font-weight: 500 !important;
+}
 
-    /* ========== STATUS BADGES ========== */
-    .status-badge {
-        padding: 4px 14px;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.9rem;
-        display: inline-block;
-    }
-    .badge-connected {
-        background-color: #d4edda;
-        color: #155724;
-    }
-    .badge-disconnected {
-        background-color: #f8d7da;
-        color: #721c24;
-    }
+[data-testid="stSidebarNav"] a:hover {
+    background: #161616 !important;
+    border-left-color: var(--accent) !important;
+    transform: translateX(4px);
+}
 
-    /* ========== STATUS MESSAGE ========== */
-    .status-message {
-        color: #ffffff !important;
-        font-size: 0.95rem;
-        font-weight: 500;
-        padding-top: 4px;
-        line-height: 1.5;
-    }
-    .status-message strong {
-        color: #FFA500 !important;
-        font-weight: 700;
-    }
+[data-testid="stSidebarNav"] a[aria-current="page"] {
+    background: rgba(255,165,0,0.12) !important;
+    border-left: 4px solid var(--accent) !important;
+    box-shadow: inset 0 0 8px rgba(255,165,0,0.15);
+    color: var(--accent) !important;
+    font-weight: 600 !important;
+}
 
-    .custom-divider {
-        margin: 2rem 0;
-        border: 0;
-        height: 1px;
-        background: linear-gradient(to right, #333333, #555555, #333333);
+/* ==========================================================
+   SIDEBAR BRANDING
+========================================================== */
+
+.sidebar-app-title {
+    color: var(--accent);
+    font-size: 1.4rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: .75rem;
+}
+
+.sidebar-app-title span {
+    background: rgba(255,165,0,.15);
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: .75rem;
+    color: #FFFFFF !important;
+}
+
+.sidebar-header-line {
+    border: none;
+    height: 1px;
+    background: linear-gradient(
+        to right,
+        var(--accent),
+        rgba(255,165,0,.25),
+        transparent
+    );
+    margin-bottom: 1rem;
+}
+
+/* ==========================================================
+   HERO SECTION (unchanged)
+========================================================== */
+
+.hero-container {
+    background-color: var(--bg-black);
+    padding: 2rem;
+    border-radius: 16px;
+    border-left: 6px solid var(--accent);
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(255,165,0,.12);
+}
+.hero-title {
+    color: var(--accent);
+    font-size: 2.8rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+.hero-sub {
+    color: var(--text-white);
+    font-size: 1.2rem;
+}
+.hero-caption {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   FEATURE CARDS (unchanged)
+========================================================== */
+
+.main-card {
+    background-color: var(--bg-black);
+    padding: 24px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 12px rgba(255,165,0,.12);
+    height: 100%;
+    transition: all .25s ease;
+}
+.main-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent);
+    box-shadow: 0 10px 24px rgba(255,165,0,.25);
+}
+.main-card h4 {
+    color: var(--accent);
+    margin-top: 0;
+}
+.main-card p {
+    color: var(--text-white);
+    line-height: 1.6;
+}
+.feature-icon {
+    font-size: 2.8rem;
+    display: block;
+    margin-bottom: 12px;
+}
+
+/* ==========================================================
+   STEP CARDS (unchanged)
+========================================================== */
+
+.step-container {
+    background-color: var(--bg-black);
+    padding: 24px;
+    border-radius: 16px;
+    border-left: 6px solid var(--accent);
+    box-shadow: 0 2px 8px rgba(255,165,0,.08);
+    transition: all .25s ease;
+}
+.step-container:hover {
+    box-shadow: 0 8px 20px rgba(255,165,0,.15);
+}
+.step-container h4 {
+    color: var(--accent);
+}
+.step-container p {
+    color: var(--text-white);
+    line-height: 1.6;
+}
+
+/* ==========================================================
+   STATUS BADGES
+========================================================== */
+
+.status-badge {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-weight: 600;
+    display: inline-block;
+}
+.badge-connected {
+    background: #d4edda;
+    color: #155724;
+}
+.badge-disconnected {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* ==========================================================
+   LIGHT MODE OVERRIDES
+========================================================== */
+
+@media (prefers-color-scheme: light) {
+    .stMarkdown h2 {
+        color: #1a1a1a !important;
     }
+}
+
+/* ==========================================================
+   STATUS MESSAGE
+========================================================== */
+
+.status-container {
+    background-color: var(--bg-card);
+    border-left: 4px solid var(--accent);
+    padding: 10px 16px;
+    border-radius: 10px;
+}
+.status-message {
+    color: var(--text-white);
+    margin: 0;
+}
+.status-message strong {
+    color: var(--accent);
+}
+
+/* ==========================================================
+   DIVIDERS
+========================================================== */
+
+.custom-divider {
+    margin: 2rem 0;
+    border: none;
+    height: 1px;
+    background: linear-gradient(
+        to right,
+        #333333,
+        #555555,
+        #333333
+    );
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================
-# SIDEBAR: Custom Header (Optional visual enhancement)
+# SIDEBAR: Custom Header (Optional)
 # ============================================================
-# Streamlit's default sidebar nav will show: 
-#   Configuration, Salesforce SOQL Editor, Field Analysis
-# We add a custom title at the top of the sidebar using st.sidebar.markdown.
-st.sidebar.markdown("""
-<div class="sidebar-app-title">
-    ⚡ Salesforce <span>v1.0</span>
-</div>
-<hr class="sidebar-header-line">
-""", unsafe_allow_html=True)
+with st.sidebar:
+    st.markdown("""
+    <div class="sidebar-app-title">
+        ⚡ Salesforce <span>v1.0</span>
+    </div>
+    <hr class="sidebar-header-line">
+    """, unsafe_allow_html=True)
 
 # ============================================================
 # HERO SECTION
 # ============================================================
 st.markdown("""
 <div class="hero-container">
-    <div class="hero-title">🗐 Salesforce Data Query & Editor</div>
+    <div class="hero-title">📊 Salesforce Data Query & Editor</div>
     <div class="hero-sub">Run powerful SOQL queries and edit your data inline — all from your browser.</div>
     <div class="hero-caption">Built with Streamlit · simple-salesforce · Standard REST API</div>
 </div>
@@ -256,7 +298,7 @@ st.markdown("""
 st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
 
 # ============================================================
-# FEATURE CARDS (3 columns)
+# FEATURE CARDS
 # ============================================================
 col1, col2, col3 = st.columns(3, gap="medium")
 
@@ -299,9 +341,29 @@ with col3:
 st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
 
 # ============================================================
-# HOW TO USE (2 Steps)
+# HOW TO USE
 # ============================================================
-st.subheader("🚀 How to Get Started")
+st.markdown("""
+<h2 style="
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+">
+    <span style="font-size: 2rem;">🚀</span>
+    <span style="
+        background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-size: 2rem;
+        font-weight: 700;
+    ">
+        How to Get Started
+    </span>
+</h2>
+""", unsafe_allow_html=True)
 
 left_step, right_step = st.columns(2, gap="medium")
 
@@ -335,22 +397,20 @@ st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
 # ============================================================
 # FOOTER / CONNECTION STATUS
 # ============================================================
-status_col1, status_col2 = st.columns([1, 6])
+is_connected = "sf" in st.session_state and st.session_state.get("config_ok")
 
-with status_col1:
-    if "sf" in st.session_state and st.session_state.get("config_ok"):
-        st.markdown('<span class="status-badge badge-connected">✅ Connected</span>', unsafe_allow_html=True)
-    else:
-        st.markdown('<span class="status-badge badge-disconnected">⛔ Not Connected</span>', unsafe_allow_html=True)
+if is_connected:
+    badge_html = '<span class="status-badge badge-connected">🟢 Connected</span>'
+    message_text = 'Your session is active. You can now use the <strong>Salesforce SOQL Editor</strong> to manage your Salesforce data.'
+else:
+    badge_html = '<span class="status-badge badge-disconnected">🔴 Not Connected</span>'
+    message_text = 'Please configure your Salesforce connection using the sidebar to unlock all features.'
 
-with status_col2:
-    if "sf" in st.session_state and st.session_state.get("config_ok"):
-        st.markdown(
-            '<div class="status-message">Your session is active. You can now use the <strong>Salesforce SOQL Editor</strong> to manage your Salesforce data.</div>',
-            unsafe_allow_html=True
-        )
-    else:
-        st.markdown(
-            '<div class="status-message">Please configure your Salesforce connection using the sidebar to unlock all features.</div>',
-            unsafe_allow_html=True
-        )
+st.markdown(f"""
+<div style="display: flex; align-items: center; gap: 12px;">
+    {badge_html}
+    <div class="status-container" style="flex: 1; margin: 0;">
+        <p class="status-message">{message_text}</p>
+    </div>
+</div>
+""", unsafe_allow_html=True)
