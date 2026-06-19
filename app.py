@@ -5,15 +5,10 @@ import streamlit as st
 # ------------------------------------------------------------
 st.set_page_config(
     page_title="Salesforce Data Query",
-    page_icon="📊",
+    page_icon="☁️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# ------------------------------------------------------------
-# FORCE REFRESH: increment this number to bust cache
-# ------------------------------------------------------------
-# v2
 
 st.markdown("""
 <style>
@@ -289,7 +284,7 @@ with st.sidebar:
 # ============================================================
 st.markdown("""
 <div class="hero-container">
-    <div class="hero-title">📊 Salesforce Data Query & Editor</div>
+    <div class="hero-title">☁️ Salesforce Data Query & Editor</div>
     <div class="hero-sub">Run powerful SOQL queries and edit your data inline — all from your browser.</div>
     <div class="hero-caption">Built with Streamlit · simple-salesforce · Standard REST API</div>
 </div>
