@@ -3,17 +3,6 @@ import pandas as pd
 import json
 import re
 
-
-# ------------------------------------------------------------
-# Page Configuration
-# ------------------------------------------------------------
-st.set_page_config(
-    page_title="Salesforce SOQL Editor",
-    page_icon="📝",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
 # ------------------------------------------------------------
 # Helper functions
 # ------------------------------------------------------------
@@ -194,12 +183,22 @@ def compute_changes(original_df, edited_df):
     update_rows = clean_edited[clean_edited["Id"].notna()]
     for _, row in update_rows.iterrows():
         rid = row["Id"]
-        payload = row.drop("Id").to_dict()
-        payload = clean_nan_for_salesforce(payload)
-        payload.pop("Id", None)
+        current = clean_nan_for_salesforce(row.drop("Id").to_dict())
+        original = original_lookup.get(rid, {})
 
-        if payload != original_lookup.get(rid):
-            rows_to_update.append((rid, payload))
+        # Field-level diff: only send fields whose value actually changed.
+        # Sending unchanged fields (especially formula/system fields like
+        # IsClosed, IsWon) causes INVALID_FIELD_FOR_INSERT_UPDATE because
+        # Salesforce rejects writes to read-only fields even when the value
+        # you are sending is identical to what is already stored.
+        changed_payload = {
+            field: new_val
+            for field, new_val in current.items()
+            if field not in original or original[field] != new_val
+        }
+
+        if changed_payload:
+            rows_to_update.append((rid, changed_payload))
 
     rows_to_insert = []
     insert_rows = clean_edited[clean_edited["Id"].isna()]
@@ -264,9 +263,10 @@ st.divider()
 st.subheader("🔍 1. Run SOQL Query")
 soql = st.text_area(
     "SOQL Query (SELECT only)",
-    height=100,
-    placeholder="Enter a SOQL query here, e.g.:\nSELECT Id, Name FROM Account WHERE CreatedDate > LAST_N_DAYS:30"
+    height=120,
+    placeholder="Enter a valid SOQL SELECT query here (e.g., SELECT Id, Name FROM Account LIMIT 10)",
 )
+st.caption("💡 **Tip:** Use **Ctrl+Z** / **Cmd+Z** to undo and **Ctrl+Y** / **Cmd+Shift+Z** to redo inside the query box.")
 
 if st.button("🚀 Run Query"):
     try:
@@ -293,10 +293,33 @@ if "query_df" in st.session_state and st.session_state["query_df"] is not None:
     df = st.session_state["query_df"]
     if not df.empty:
         st.subheader("📋 Retrieved Fields")
+        # Drop raw relationship columns that were already expanded into dotted
+        # sub-columns by explode_soql_record. When a contact has no Account,
+        # the null value falls through as flat_parent["Account"] = None instead
+        # of being flattened, so pandas produces a spurious "Account" column
+        # alongside the correct "Account.Id" / "Account.Name" columns.
+        # Rule: remove column X if any other column starts with "X." — that
+        # means X was a relationship object that was already expanded.
+        expanded_prefixes = {col.split(".")[0] for col in df.columns if "." in col}
+        spurious_cols = [col for col in df.columns if col in expanded_prefixes]
+        if spurious_cols:
+            df = df.drop(columns=spurious_cols)
+            st.session_state["query_df"] = df   # keep session state in sync
+
         st.caption(f"Columns fetched: {', '.join(df.columns)}")
         st.subheader("📊 Query Results")
-        st.dataframe(df, width="stretch", height=400)
-        st.caption(f"Showing {len(df)} records")
+
+        # Dynamic height: fit the table tightly to actual row count.
+        # 35px per data row + 38px header, capped between 120px and 650px so
+        # tiny results don't leave a huge empty canvas and large ones don't
+        # scroll the whole page.
+        ROW_PX = 35
+        HEADER_PX = 38
+        dynamic_height = max(HEADER_PX + ROW_PX * len(df), 120)
+        dynamic_height = min(dynamic_height, 650)
+
+        st.dataframe(df, width='stretch', height=dynamic_height)
+        st.caption(f"Showing {len(df)} record(s) · {len(df.columns)} column(s)")
         csv = df.to_csv(index=False)
         st.download_button(
             label="⬇️ Download as CSV",
