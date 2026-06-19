@@ -243,7 +243,13 @@ if selected_object and selected_object != "-- Select an object to analyze --":
                             }
                             for val in picklist_values
                         ])
-                        st.dataframe(values_df, width="stretch", height=300)
+                        
+                        ROW_PX = 35
+                        HEADER_PX = 38
+                        dynamic_height = max(HEADER_PX + ROW_PX * len(values_df), 120)
+                        dynamic_height = min(dynamic_height, 650)
+
+                        st.dataframe(values_df, width="stretch", height=dynamic_height)
                         st.caption(f"Showing {len(picklist_values)} values.")
                     else:
                         st.info("This picklist has no defined values (or it is a global picklist).")
