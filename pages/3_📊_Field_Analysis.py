@@ -94,19 +94,147 @@ def compute_stats(describe_result):
     }
 
 # ------------------------------------------------------------
+# History state helpers
+# ------------------------------------------------------------
+
+def _default_analysis_state():
+    return {
+        "object": "-- Select an object to analyze --",
+        "picklist": "-- Select a picklist field --",
+    }
+
+
+def ensure_widget_state(key, default_value):
+    if key not in st.session_state:
+        st.session_state[key] = default_value
+
+
+def ensure_widget_state(key, default_value):
+    if key not in st.session_state:
+        st.session_state[key] = default_value
+
+
+def init_history_state():
+    if "history_stack" not in st.session_state:
+        st.session_state.history_stack = []
+    if "future_stack" not in st.session_state:
+        st.session_state.future_stack = []
+    if "field_analysis_state" not in st.session_state:
+        st.session_state.field_analysis_state = _default_analysis_state()
+    if "field_analysis_last_state" not in st.session_state:
+        st.session_state.field_analysis_last_state = st.session_state.field_analysis_state.copy()
+    if "field_analysis_object" not in st.session_state:
+        st.session_state.field_analysis_object = st.session_state.field_analysis_state["object"]
+    if "field_analysis_picklist" not in st.session_state:
+        st.session_state.field_analysis_picklist = st.session_state.field_analysis_state["picklist"]
+
+
+def push_history_state(state):
+    if not state or state.get("object") == "-- Select an object to analyze --":
+        return
+    if not st.session_state.history_stack or st.session_state.history_stack[-1] != state:
+        st.session_state.history_stack.append(state.copy())
+        if len(st.session_state.history_stack) > 50:
+            st.session_state.history_stack = st.session_state.history_stack[-50:]
+
+
+def on_object_change():
+    if st.session_state.get("suppress_history", False):
+        return
+
+    current_state = st.session_state.field_analysis_state.copy()
+    new_object = st.session_state.field_analysis_object
+
+    if new_object != current_state["object"]:
+        if current_state["object"] != "-- Select an object to analyze --":
+            push_history_state(current_state)
+            st.session_state.future_stack.clear()
+
+        new_state = {
+            "object": new_object,
+            "picklist": "-- Select a picklist field --",
+        }
+        st.session_state.field_analysis_state = new_state
+        st.session_state.field_analysis_picklist = new_state["picklist"]
+        st.session_state.field_analysis_last_state = new_state.copy()
+
+
+def on_picklist_change():
+    if st.session_state.get("suppress_history", False):
+        return
+
+    current_state = st.session_state.field_analysis_state.copy()
+    new_picklist = st.session_state.field_analysis_picklist
+
+    if new_picklist != current_state["picklist"]:
+        if current_state["object"] != "-- Select an object to analyze --":
+            push_history_state(current_state)
+            st.session_state.future_stack.clear()
+
+        st.session_state.field_analysis_state = {
+            "object": current_state["object"],
+            "picklist": new_picklist,
+        }
+        st.session_state.field_analysis_last_state = st.session_state.field_analysis_state.copy()
+
+
+def _set_analysis_state(target_state):
+    st.session_state.suppress_history = True
+    try:
+        st.session_state.field_analysis_state = target_state.copy()
+        st.session_state.field_analysis_object = target_state["object"]
+        st.session_state.field_analysis_picklist = target_state["picklist"]
+        st.session_state.field_analysis_last_state = target_state.copy()
+    finally:
+        st.session_state.suppress_history = False
+
+
+def go_back():
+    if not st.session_state.history_stack:
+        return
+
+    current_state = st.session_state.field_analysis_state.copy()
+    target_state = st.session_state.history_stack.pop()
+    st.session_state.future_stack.append(current_state)
+    _set_analysis_state(target_state)
+
+
+def go_forward():
+    if not st.session_state.future_stack:
+        return
+
+    current_state = st.session_state.field_analysis_state.copy()
+    target_state = st.session_state.future_stack.pop()
+    st.session_state.history_stack.append(current_state)
+    _set_analysis_state(target_state)
+
+
+# ------------------------------------------------------------
 # Object selection with placeholder
 # ------------------------------------------------------------
+init_history_state()
+ensure_widget_state("field_analysis_object", st.session_state.field_analysis_state["object"])
+ensure_widget_state("field_analysis_picklist", st.session_state.field_analysis_state["picklist"])
+
 all_objects = [obj["name"] for obj in sf.describe()["sobjects"]]
 all_objects_sorted = sorted(all_objects)
-
 object_options = ["-- Select an object to analyze --"] + all_objects_sorted
 
 selected_object = st.selectbox(
     "Select an object to analyze",
     options=object_options,
-    index=0,
+    key="field_analysis_object",
+    on_change=on_object_change,
     help="Choose any Salesforce object (standard or custom)."
 )
+
+button_col1, button_col2, button_col3 = st.columns([1, 1, 6])
+with button_col1:
+    st.button("⬅ Back", on_click=go_back, disabled=not st.session_state.history_stack)
+with button_col2:
+    st.button("➡ Forward", on_click=go_forward, disabled=not st.session_state.future_stack)
+with button_col3:
+    st.caption(f"History: {len(st.session_state.history_stack)} back / {len(st.session_state.future_stack)} forward")
 
 # ------------------------------------------------------------
 # Load and display stats only if a real object is selected
@@ -221,7 +349,8 @@ if selected_object and selected_object != "-- Select an object to analyze --":
                 selected_picklist = st.selectbox(
                     "Select a picklist field to view its values",
                     options=picklist_options_with_placeholder,
-                    index=0,
+                    key="field_analysis_picklist",
+                    on_change=on_picklist_change,
                     format_func=lambda x: picklist_options[x] if x in picklist_options else x,
                     help="Choose a picklist field to see all allowed values."
                 )
