@@ -76,6 +76,36 @@ def show_error(title: str, e: Exception):
     with st.expander("Show technical details"):
         st.code(str(e), language="text")
 
+
+def init_soql_history():
+    st.session_state.setdefault("soql_history", [])
+    st.session_state.setdefault("soql_query_input", "")
+    st.session_state.setdefault("soql_history_selector", "-- Select a previously executed query --")
+
+
+def add_query_history(query: str):
+    query = query.strip()
+    if not query:
+        return
+    history = st.session_state.soql_history
+    if query in history:
+        history.remove(query)
+    history.insert(0, query)
+    st.session_state.soql_history = history[:50]
+
+
+def select_history_query():
+    selected_query = st.session_state.soql_history_selector
+    if selected_query and selected_query != "-- Select a previously executed query --":
+        st.session_state.soql_query_input = selected_query
+
+
+def clear_query_history():
+    st.session_state.soql_history = []
+    st.session_state.soql_history_selector = "-- Select a previously executed query --"
+    st.session_state.soql_query_input = ""
+
+
 def explode_soql_record(record: dict) -> list:
     """
     Flattens a single SOQL result record into one or more "rows" (dicts).
@@ -239,6 +269,7 @@ if "sf" not in st.session_state or not st.session_state.get("config_ok"):
     st.stop()
 
 sf = st.session_state["sf"]
+init_soql_history()
 all_objects = [obj["name"] for obj in sf.describe()["sobjects"]]
 
 # Tracks how many times we've loaded fresh data into the editor. We bump
@@ -265,10 +296,14 @@ soql = st.text_area(
     "SOQL Query (SELECT only)",
     height=120,
     placeholder="Enter a valid SOQL SELECT query here (e.g., SELECT Id, Name FROM Account LIMIT 10)",
+    key="soql_query_input",
 )
 st.caption("💡 **Tip:** Use **Ctrl+Z** / **Cmd+Z** to undo and **Ctrl+Y** / **Cmd+Shift+Z** to redo inside the query box.")
 
-if st.button("🚀 Run Query"):
+run_query_pressed = st.button("🚀 Run Query")
+if run_query_pressed:
+    soql = st.session_state.soql_query_input
+    add_query_history(soql)
     try:
         result = sf.query_all(soql)
         records = result["records"]
@@ -288,6 +323,33 @@ if st.button("🚀 Run Query"):
     except Exception as e:
         show_error("Query failed", e)
         st.session_state["query_df"] = None
+
+history_options = ["-- Select a previously executed query --"] + st.session_state.soql_history
+history_index = 0
+if st.session_state.soql_history_selector in history_options:
+    history_index = history_options.index(st.session_state.soql_history_selector)
+
+history_col1, history_col2 = st.columns([5, 1])
+with history_col1:
+    selected_history_query = st.selectbox(
+        "SOQL History Tracker",
+        options=history_options,
+        index=history_index,
+        key="soql_history_selector",
+        on_change=select_history_query,
+        help="Select a previously executed SOQL query to reload it into the query box.",
+    )
+    if not st.session_state.soql_history:
+        st.caption("No saved SOQL queries yet. Run a query to add it to history.")
+with history_col2:
+    st.write("\n")
+    st.write("\n")
+    st.button(
+        "Clear History",
+        on_click=clear_query_history,
+        help="Remove all saved SOQL query history.",
+        disabled=not st.session_state.soql_history,
+    )
 
 if "query_df" in st.session_state and st.session_state["query_df"] is not None:
     df = st.session_state["query_df"]
