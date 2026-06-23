@@ -4,15 +4,47 @@ import json
 import re
 
 # ------------------------------------------------------------
+# Page Configuration
+# ------------------------------------------------------------
+st.set_page_config(
+    page_title="SOQL Editor & Record Management",
+    page_icon="📝",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ------------------------------------------------------------
+# Constant for delete checkbox column name
+# ------------------------------------------------------------
+DELETE_COL = "🗑️ Delete?"
+
+# ------------------------------------------------------------
 # Helper functions
 # ------------------------------------------------------------
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300, hash_funcs={"_sf": lambda _: None})
 def get_object_fields(_sf, object_name: str):
     try:
         describe = _sf.__getattr__(object_name).describe()
         return [f["name"] for f in describe["fields"]]
     except Exception:
         return []
+
+
+@st.cache_data(ttl=300, hash_funcs={"_sf": lambda _: None})
+def get_object_field_metadata(_sf, object_name: str):
+    """
+    Returns Salesforce field metadata for the selected object.
+
+    Used for:
+    - checking whether CSV columns are real Salesforce API field names
+    - checking createable/updateable permissions
+    """
+    try:
+        describe = _sf.__getattr__(object_name).describe()
+        return {f["name"]: f for f in describe["fields"]}
+    except Exception:
+        return {}
+
 
 def clean_where_clause(clause: str) -> str:
     if not clause:
@@ -21,6 +53,7 @@ def clean_where_clause(clause: str) -> str:
     if cleaned.upper().startswith("WHERE "):
         cleaned = cleaned[6:].strip()
     return cleaned
+
 
 def format_salesforce_error(e: Exception) -> str:
     """
@@ -49,6 +82,7 @@ def format_salesforce_error(e: Exception) -> str:
 
     content = getattr(e, "content", None)
     messages = []
+
     if isinstance(content, list):
         messages = _format_entries(content)
     elif isinstance(content, dict):
@@ -61,6 +95,7 @@ def format_salesforce_error(e: Exception) -> str:
     text = str(e)
     msg_match = re.search(r"'message':\s*'([^']*)'", text)
     code_match = re.search(r"'errorCode':\s*'([^']*)'", text)
+
     if msg_match:
         msg = msg_match.group(1)
         code = code_match.group(1) if code_match else ""
@@ -68,10 +103,13 @@ def format_salesforce_error(e: Exception) -> str:
 
     return text
 
+
 def show_error(title: str, e: Exception):
-    """Display a clean error message with the raw exception tucked away
+    """
+    Display a clean error message with the raw exception tucked away
     in an expander, instead of dumping the full request/response repr
-    straight into the UI."""
+    straight into the UI.
+    """
     st.error(f"❌ **{title}:** {format_salesforce_error(e)}")
     with st.expander("Show technical details"):
         st.code(str(e), language="text")
@@ -80,16 +118,22 @@ def show_error(title: str, e: Exception):
 def init_soql_history():
     st.session_state.setdefault("soql_history", [])
     st.session_state.setdefault("soql_query_input", "")
-    st.session_state.setdefault("soql_history_selector", "-- Select a previously executed query --")
+    st.session_state.setdefault(
+        "soql_history_selector",
+        "-- Select a previously executed query --"
+    )
 
 
 def add_query_history(query: str):
     query = query.strip()
     if not query:
         return
+
     history = st.session_state.soql_history
+
     if query in history:
         history.remove(query)
+
     history.insert(0, query)
     st.session_state.soql_history = history[:50]
 
@@ -110,17 +154,10 @@ def explode_soql_record(record: dict) -> list:
     """
     Flattens a single SOQL result record into one or more "rows" (dicts).
 
-    Parent relationship lookups (e.g. Account.Owner.Name) flatten into
-    dotted column names on the same row, same as before.
+    Parent relationship lookups flatten into dotted column names on the same row.
 
-    Child relationship subqueries (e.g. a nested
-    "SELECT ... (SELECT ... FROM Contacts) FROM Account") come back as
-    {"totalSize": N, "done": bool, "records": [...]}. Rather than dumping
-    that whole structure into one cell as JSON, we explode it: one output
-    row per child record, with child fields flattened to
-    "<RelationshipName>.<Field>" columns and the parent's own fields
-    repeated on each row. A parent with zero child records still gets one
-    row, with the child columns simply left blank.
+    Child relationship subqueries are exploded into one output row per child
+    record, with parent fields repeated.
     """
     record = dict(record)
     record.pop("attributes", None)
@@ -132,7 +169,6 @@ def explode_soql_record(record: dict) -> list:
         if isinstance(value, dict) and "records" in value and "totalSize" in value:
             child_relationships[key] = value.get("records") or []
         elif isinstance(value, dict):
-            # Parent relationship lookup, e.g. Account: {Name: ..., Id: ...}
             for sub_k, sub_v in value.items():
                 if sub_k == "attributes":
                     continue
@@ -144,8 +180,10 @@ def explode_soql_record(record: dict) -> list:
         return [flat_parent]
 
     rows = [dict(flat_parent)]
+
     for rel_name, children in child_relationships.items():
         new_rows = []
+
         if not children:
             new_rows = [dict(r) for r in rows]
         else:
@@ -153,18 +191,22 @@ def explode_soql_record(record: dict) -> list:
                 child = dict(child)
                 child.pop("attributes", None)
                 flat_child = {f"{rel_name}.{k}": v for k, v in child.items()}
+
                 for base_row in rows:
                     merged = dict(base_row)
                     merged.update(flat_child)
                     new_rows.append(merged)
+
         rows = new_rows
 
     return rows
+
 
 def format_complex_cell(val):
     if isinstance(val, (dict, list)):
         return json.dumps(val, indent=2)
     return val
+
 
 def clean_nan_for_salesforce(obj):
     if isinstance(obj, dict):
@@ -176,51 +218,45 @@ def clean_nan_for_salesforce(obj):
     else:
         return obj
 
+
 def get_query_fields(selected_fields):
     """
-    Always ensure 'Id' is included (and first) in the list of fields used
-    for the SOQL query, regardless of what the user picked in the
-    multiselect. We need Id internally for update/delete, even though
-    it's hidden from the displayed table.
+    Always ensure 'Id' is included first in the query field list.
     """
     return ["Id"] + [f for f in selected_fields if f != "Id"]
 
+
 def compute_changes(original_df, edited_df):
     """
-    Compare the originally-loaded data against the user-edited data and
-    return only what genuinely needs to be sent to Salesforce:
-      - rows_to_update: list of (id, payload) for rows whose values
-        actually differ from what was originally loaded
-      - rows_to_insert: list of payload dicts for new rows (blank Id)
-        that have at least one field filled in
+    Compare originally-loaded data against user-edited data.
 
-    This avoids two problems: (1) re-sending an identical payload for
-    rows nobody touched, and (2) treating the data_editor's always-present
-    empty "add a row" placeholder as a real insert when it was never
-    filled in.
+    Returns:
+      - rows_to_update: list of (id, payload)
+      - rows_to_insert: list of payload dicts
     """
-    clean_edited = edited_df.drop(columns=["🗑️ Delete?"], errors="ignore")
+    clean_edited = edited_df.drop(columns=[DELETE_COL], errors="ignore")
 
     original_lookup = {}
+
     if "Id" in original_df.columns:
         for _, orig_row in original_df.iterrows():
             rid = orig_row.get("Id")
+
             if pd.notna(rid):
-                orig_clean = orig_row.drop(labels=["Id", "🗑️ Delete?"], errors="ignore")
+                orig_clean = orig_row.drop(
+                    labels=["Id", DELETE_COL],
+                    errors="ignore"
+                )
                 original_lookup[rid] = clean_nan_for_salesforce(orig_clean.to_dict())
 
     rows_to_update = []
     update_rows = clean_edited[clean_edited["Id"].notna()]
+
     for _, row in update_rows.iterrows():
         rid = row["Id"]
         current = clean_nan_for_salesforce(row.drop("Id").to_dict())
         original = original_lookup.get(rid, {})
 
-        # Field-level diff: only send fields whose value actually changed.
-        # Sending unchanged fields (especially formula/system fields like
-        # IsClosed, IsWon) causes INVALID_FIELD_FOR_INSERT_UPDATE because
-        # Salesforce rejects writes to read-only fields even when the value
-        # you are sending is identical to what is already stored.
         changed_payload = {
             field: new_val
             for field, new_val in current.items()
@@ -232,34 +268,308 @@ def compute_changes(original_df, edited_df):
 
     rows_to_insert = []
     insert_rows = clean_edited[clean_edited["Id"].isna()]
+
     for _, row in insert_rows.iterrows():
         rec = row.to_dict()
         rec = clean_nan_for_salesforce(rec)
         rec.pop("Id", None)
-        rec.pop("🗑️ Delete?", None)
-        # Skip entirely-blank rows (e.g. the data_editor's unused add-row)
+        rec.pop(DELETE_COL, None)
+
+        # Skip Streamlit's empty dynamic add-row placeholder
         if any(v not in (None, "") for v in rec.values()):
             rows_to_insert.append(rec)
 
     return rows_to_update, rows_to_insert
 
+
 def run_records_query(sf, object_name, selected_fields, where_clause):
     query_fields = get_query_fields(selected_fields)
     field_str = ", ".join(query_fields)
+
     q = f"SELECT {field_str} FROM {object_name}"
+
     if where_clause:
         q += f" WHERE {where_clause}"
+
     records = sf.query_all(q)["records"]
+
     if records:
         clean_records = []
+
         for rec in records:
             rec.pop("attributes", None)
             clean_records.append(rec)
+
         df = pd.DataFrame(clean_records)
     else:
         df = pd.DataFrame(columns=query_fields)
-    df["🗑️ Delete?"] = False
+
+    df[DELETE_COL] = False
     return df
+
+
+# ------------------------------------------------------------
+# Bulk CSV helper functions
+# ------------------------------------------------------------
+def normalize_csv_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Trim spaces around CSV column names and detect duplicate columns.
+    Example: ' Name ' becomes 'Name'.
+    """
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
+
+    duplicate_cols = df.columns[df.columns.duplicated()].tolist()
+
+    if duplicate_cols:
+        raise ValueError(
+            f"Duplicate column(s) found in CSV: {', '.join(duplicate_cols)}"
+        )
+
+    return df
+
+
+def validate_bulk_csv_fields(sf, object_name: str, df: pd.DataFrame, operation: str):
+    """
+    Validate uploaded CSV columns based on operation type.
+
+    Insert:
+      - Id is not required
+      - Id will be ignored if present
+      - At least one non-Id field is required
+
+    Update:
+      - Id is required
+      - At least one other field is required
+
+    Delete:
+      - Only Id is required
+      - Extra fields are ignored
+    """
+    errors = []
+    warnings = []
+
+    if df.empty:
+        errors.append("Uploaded CSV file is empty.")
+        return errors, warnings
+
+    field_metadata = get_object_field_metadata(sf, object_name)
+    if not field_metadata:
+        errors.append(
+            f"You don't have permission to describe object '{object_name}', "
+            "or the object does not exist."
+        )
+        return errors, warnings
+
+    available_fields = set(field_metadata.keys())
+    csv_fields = list(df.columns)
+    operation = operation.lower()
+
+    if operation in ("insert", "update"):
+        for field in csv_fields:
+            if field not in available_fields:
+                errors.append(
+                    f"The field '{field}' is not available in the selected object "
+                    f"'{object_name}', please select the valid field for this object."
+                )
+
+        if errors:
+            return errors, warnings
+
+    elif operation == "delete":
+        if "Id" not in csv_fields:
+            errors.append("For bulk deletion, only Id field is required.")
+
+        extra_fields = [f for f in csv_fields if f != "Id"]
+
+        if extra_fields:
+            warnings.append(
+                "For bulk deletion, only Id field is required. "
+                "Extra field(s) will be ignored: " + ", ".join(extra_fields)
+            )
+
+        return errors, warnings
+
+    else:
+        errors.append("Invalid bulk operation selected.")
+        return errors, warnings
+
+    if operation == "insert":
+        non_id_fields = [f for f in csv_fields if f != "Id"]
+
+        if not non_id_fields:
+            errors.append(
+                "For bulk insertion, CSV must contain at least one field other than Id."
+            )
+
+        if "Id" in csv_fields:
+            warnings.append(
+                "Id field is present in CSV but will be ignored for bulk insertion."
+            )
+
+        non_createable_fields = [
+            f for f in non_id_fields
+            if not field_metadata.get(f, {}).get("createable", False)
+        ]
+
+        if non_createable_fields:
+            errors.append(
+                "These field(s) are not createable in Salesforce and cannot be used for insert: "
+                + ", ".join(non_createable_fields)
+            )
+
+    elif operation == "update":
+        if "Id" not in csv_fields:
+            errors.append("For bulk updation, Id field is required.")
+
+        update_fields = [f for f in csv_fields if f != "Id"]
+
+        if not update_fields:
+            errors.append(
+                "For bulk updation, CSV must contain Id and at least one field to update."
+            )
+
+        non_updateable_fields = [
+            f for f in update_fields
+            if not field_metadata.get(f, {}).get("updateable", False)
+        ]
+
+        if non_updateable_fields:
+            errors.append(
+                "These field(s) are not updateable in Salesforce and cannot be used for update: "
+                + ", ".join(non_updateable_fields)
+            )
+
+    return errors, warnings
+
+
+def prepare_bulk_records_from_csv(df: pd.DataFrame, operation: str):
+    """
+    Convert uploaded CSV dataframe into Salesforce Bulk API compatible records.
+    """
+    operation = operation.lower()
+    df = normalize_csv_columns(df)
+    records_from_csv = clean_nan_for_salesforce(df.to_dict(orient="records"))
+
+    records = []
+
+    if operation == "insert":
+        for row in records_from_csv:
+            row.pop("Id", None)
+
+            # Skip fully blank rows
+            if any(v not in (None, "") for v in row.values()):
+                records.append(row)
+
+    elif operation == "update":
+        for row in records_from_csv:
+            rid = row.get("Id")
+
+            if rid in (None, ""):
+                continue
+
+            record = {"Id": rid}
+
+            for field, value in row.items():
+                if field != "Id":
+                    record[field] = value
+
+            records.append(record)
+
+    elif operation == "delete":
+        for row in records_from_csv:
+            rid = row.get("Id")
+
+            if rid not in (None, ""):
+                records.append({"Id": rid})
+
+    return records
+
+
+def chunk_records(records: list, chunk_size: int = 200):
+    """
+    Split records into smaller chunks for bulk processing.
+    This helps show progress after each batch.
+    """
+    for i in range(0, len(records), chunk_size):
+        yield records[i:i + chunk_size]
+
+
+def run_bulk_operation_with_progress(
+    sf,
+    object_name: str,
+    operation: str,
+    records: list,
+    batch_size: int = 200,
+    progress_bar=None,
+    status_placeholder=None
+):
+    """
+    Execute Salesforce Bulk API operation in chunks and update Streamlit progress bar.
+    """
+    bulk_obj = sf.bulk.__getattr__(object_name)
+    operation = operation.lower()
+
+    all_results = []
+    total_records = len(records)
+    processed_records = 0
+
+    chunks = list(chunk_records(records, batch_size))
+    total_batches = len(chunks)
+
+    for batch_index, batch_records in enumerate(chunks, start=1):
+        if status_placeholder:
+            status_placeholder.info(
+                f"Processing batch {batch_index} of {total_batches} "
+                f"({len(batch_records)} record(s))..."
+            )
+
+        if operation == "insert":
+            batch_results = bulk_obj.insert(batch_records, batch_size=len(batch_records))
+        elif operation == "update":
+            batch_results = bulk_obj.update(batch_records, batch_size=len(batch_records))
+        elif operation == "delete":
+            batch_results = bulk_obj.delete(batch_records, batch_size=len(batch_records))
+        else:
+            raise ValueError("Invalid bulk operation.")
+
+        all_results.extend(batch_results)
+
+        processed_records += len(batch_records)
+        progress_percent = processed_records / total_records
+
+        if progress_bar:
+            progress_bar.progress(progress_percent)
+
+    if status_placeholder:
+        status_placeholder.success(
+            f"Bulk {operation} processing completed for {processed_records} record(s)."
+        )
+
+    return all_results
+
+
+def summarize_bulk_results(results):
+    """
+    Summarize Salesforce Bulk API result response.
+    """
+    success_count = 0
+    failure_count = 0
+    failed_rows = []
+
+    for idx, result in enumerate(results, start=1):
+        if result.get("success") is True:
+            success_count += 1
+        else:
+            failure_count += 1
+            failed_rows.append({
+                "Row Number": idx,
+                "Id": result.get("id"),
+                "Errors": result.get("errors")
+            })
+
+    return success_count, failure_count, failed_rows
+
 
 # ------------------------------------------------------------
 # Check connection
@@ -270,66 +580,83 @@ if "sf" not in st.session_state or not st.session_state.get("config_ok"):
 
 sf = st.session_state["sf"]
 init_soql_history()
+
 all_objects = [obj["name"] for obj in sf.describe()["sobjects"]]
 
-# Tracks how many times we've loaded fresh data into the editor. We bump
-# this every time we (re)load records from Salesforce, and use it as part
-# of the data_editor's `key`. Streamlit ties a data_editor's edit history
-# (added/edited/deleted rows) to its key, so reusing the same key across
-# reruns causes old draft edits to be silently reapplied on top of newly
-# fetched data. Changing the key forces a clean editor with no leftover
-# drafts.
+# Tracks fresh editor versions to avoid stale Streamlit data_editor drafts.
 st.session_state.setdefault("editor_version", 0)
 
 # ------------------------------------------------------------
 # Page Title
 # ------------------------------------------------------------
 st.title("🧾 Data Query & Editor")
-st.caption("Run SOQL queries and edit records inline using the dynamic spreadsheet below.")
+st.caption("Run SOQL queries, edit records inline, and perform bulk CSV operations.")
 st.divider()
 
 # ============================================================
 # SECTION 1: Execute SOQL SELECT
 # ============================================================
 st.subheader("🔍 1. Run SOQL Query")
+
 soql = st.text_area(
     "SOQL Query (SELECT only)",
     height=120,
     placeholder="Enter a valid SOQL SELECT query here (e.g., SELECT Id, Name FROM Account LIMIT 10)",
     key="soql_query_input",
 )
-st.caption("💡 **Tip:** Use **Ctrl+Z** / **Cmd+Z** to undo and **Ctrl+Y** / **Cmd+Shift+Z** to redo inside the query box.")
+
+st.caption(
+    "💡 **Tip:** Use **Ctrl+Z** / **Cmd+Z** to undo and "
+    "**Ctrl+Y** / **Cmd+Shift+Z** to redo inside the query box."
+)
 
 run_query_pressed = st.button("🚀 Run Query")
+
 if run_query_pressed:
-    soql = st.session_state.soql_query_input
-    add_query_history(soql)
-    try:
-        result = sf.query_all(soql)
-        records = result["records"]
-        if records:
-            cleaned_records = []
-            for rec in records:
-                cleaned_records.extend(explode_soql_record(rec))
-            df = pd.DataFrame(cleaned_records)
-            df = df.map(format_complex_cell)
-        else:
-            df = pd.DataFrame()
-        st.session_state["query_df"] = df
-        if records and len(df) != len(records):
-            st.success(f"✅ {len(records)} record(s) returned → {len(df)} row(s) after expanding child relationships")
-        else:
-            st.success(f"✅ {len(df)} records returned")
-    except Exception as e:
-        show_error("Query failed", e)
-        st.session_state["query_df"] = None
+    soql = st.session_state.soql_query_input.strip()
+    if not soql:
+        st.error("❌ Please enter a SOQL query.")
+    else:
+        add_query_history(soql)
+
+        try:
+            result = sf.query_all(soql)
+            records = result["records"]
+
+            if records:
+                cleaned_records = []
+
+                for rec in records:
+                    cleaned_records.extend(explode_soql_record(rec))
+
+                df = pd.DataFrame(cleaned_records)
+                df = df.map(format_complex_cell)
+            else:
+                df = pd.DataFrame()
+
+            st.session_state["query_df"] = df
+
+            if records and len(df) != len(records):
+                st.success(
+                    f"✅ {len(records)} record(s) returned → "
+                    f"{len(df)} row(s) after expanding child relationships"
+                )
+            else:
+                st.success(f"✅ {len(df)} records returned")
+
+        except Exception as e:
+            show_error("Query failed", e)
+            st.session_state["query_df"] = None
+
 
 history_options = ["-- Select a previously executed query --"] + st.session_state.soql_history
 history_index = 0
+
 if st.session_state.soql_history_selector in history_options:
     history_index = history_options.index(st.session_state.soql_history_selector)
 
 history_col1, history_col2 = st.columns([5, 1])
+
 with history_col1:
     selected_history_query = st.selectbox(
         "SOQL History Tracker",
@@ -339,8 +666,10 @@ with history_col1:
         on_change=select_history_query,
         help="Select a previously executed SOQL query to reload it into the query box.",
     )
+    
     if not st.session_state.soql_history:
         st.caption("No saved SOQL queries yet. Run a query to add it to history.")
+
 with history_col2:
     st.write("\n")
     st.write("\n")
@@ -351,56 +680,54 @@ with history_col2:
         disabled=not st.session_state.soql_history,
     )
 
+
 if "query_df" in st.session_state and st.session_state["query_df"] is not None:
     df = st.session_state["query_df"]
+
     if not df.empty:
         st.subheader("📋 Retrieved Fields")
-        # Drop raw relationship columns that were already expanded into dotted
-        # sub-columns by explode_soql_record. When a contact has no Account,
-        # the null value falls through as flat_parent["Account"] = None instead
-        # of being flattened, so pandas produces a spurious "Account" column
-        # alongside the correct "Account.Id" / "Account.Name" columns.
-        # Rule: remove column X if any other column starts with "X." — that
-        # means X was a relationship object that was already expanded.
+
         expanded_prefixes = {col.split(".")[0] for col in df.columns if "." in col}
         spurious_cols = [col for col in df.columns if col in expanded_prefixes]
+
         if spurious_cols:
             df = df.drop(columns=spurious_cols)
-            st.session_state["query_df"] = df   # keep session state in sync
+            st.session_state["query_df"] = df
 
         st.caption(f"Columns fetched: {', '.join(df.columns)}")
         st.subheader("📊 Query Results")
 
-        # Dynamic height: fit the table tightly to actual row count.
-        # 35px per data row + 38px header, capped between 120px and 650px so
-        # tiny results don't leave a huge empty canvas and large ones don't
-        # scroll the whole page.
         ROW_PX = 35
         HEADER_PX = 38
         dynamic_height = max(HEADER_PX + ROW_PX * len(df), 120)
         dynamic_height = min(dynamic_height, 650)
 
-        st.dataframe(df, width='stretch', height=dynamic_height)
+        st.dataframe(df, width="stretch", height=dynamic_height)
         st.caption(f"Showing {len(df)} record(s) · {len(df.columns)} column(s)")
+
         csv = df.to_csv(index=False)
+
         st.download_button(
             label="⬇️ Download as CSV",
             data=csv,
             file_name="query_results.csv",
             mime="text/csv"
         )
+
     else:
         st.info("📭 Query returned 0 records (empty dataset).")
+
 
 st.divider()
 
 # ============================================================
-# SECTION 2: Record Editor (Inline CRUD) – FIXED
+# SECTION 2: Record Editor Inline CRUD
 # ============================================================
 st.subheader("✏️ 2. Record Editor (Inline CRUD)")
 st.caption("Select an object, pick the fields you want to edit, and load records.")
 
 obj_options = ["Select an object..."] + all_objects
+
 selected_obj_label = st.selectbox(
     "Object for editing",
     options=obj_options,
@@ -415,17 +742,16 @@ else:
     obj_for_edit = None
     all_fields = []
 
-# 'Id' is excluded from the picklist on purpose — it's always fetched
-# automatically (required for update/delete) and shown as a read-only
-# column, regardless of what the user picks here.
 selectable_fields = [f for f in all_fields if f != "Id"]
 
 selected_fields = st.multiselect(
     "Select fields to display and edit",
     options=selectable_fields,
     default=[],
-    help="Choose the fields you want to see and modify. 'Id' is always "
-         "included and shown as a read-only column, used for saving/deleting.",
+    help=(
+        "Choose the fields you want to see and modify. 'Id' is always "
+        "included and shown as a read-only column, used for saving/deleting."
+    ),
 )
 
 filter_clause = st.text_input(
@@ -442,31 +768,40 @@ if load_btn:
     elif not selected_fields:
         st.error("❌ Please select at least one field to display.")
     else:
-        try:
-            clean_filter = clean_where_clause(filter_clause)
-            edit_df = run_records_query(sf, obj_for_edit, selected_fields, clean_filter)
+        with st.spinner("Loading records..."):
+            try:
+                clean_filter = clean_where_clause(filter_clause)
+                edit_df = run_records_query(
+                    sf,
+                    obj_for_edit,
+                    selected_fields,
+                    clean_filter
+                )
 
-            # Store everything
-            st.session_state["edit_target"] = obj_for_edit
-            st.session_state["edit_df"] = edit_df
-            st.session_state["selected_fields"] = selected_fields
-            st.session_state["edit_filter"] = clean_filter
-            st.session_state["editor_version"] += 1  # force a fresh editor, drop stale drafts
+                st.session_state["edit_target"] = obj_for_edit
+                st.session_state["edit_df"] = edit_df
+                st.session_state["selected_fields"] = selected_fields
+                st.session_state["edit_filter"] = clean_filter
+                st.session_state["editor_version"] += 1
 
-            st.success(f"✅ Loaded {len(edit_df)} records with {len(selected_fields)} visible fields.")
-            st.rerun()  # Force a complete refresh of the data editor
-        except Exception as e:
-            show_error("Failed to load records", e)
+                st.success(
+                    f"✅ Loaded {len(edit_df)} records with "
+                    f"{len(selected_fields)} visible fields."
+                )
+                st.rerun()
+
+            except Exception as e:
+                show_error("Failed to load records", e)
+
 
 # --- Display the Record Editor ---
 if "edit_df" in st.session_state:
-    st.write("**Editable Data** – modify inline, add rows, or check the 'Delete?' box to remove records.")
+    st.write(
+        "**Editable Data** – modify inline, add rows, or check the "
+        "'Delete?' box to remove records."
+    )
 
-    # IMPORTANT: Id must stay in column_order (i.e. actually be displayed),
-    # otherwise Streamlit's data_editor drops its value when reconstructing
-    # edited rows — turning every "update" into an accidental "insert" with
-    # a blank Id. Instead of hiding Id, we show it but make it read-only.
-    display_columns = ["Id"] + st.session_state.get("selected_fields", []) + ["🗑️ Delete?"]
+    display_columns = ["Id"] + st.session_state.get("selected_fields", []) + [DELETE_COL]
 
     edited_df = st.data_editor(
         st.session_state["edit_df"],
@@ -481,7 +816,7 @@ if "edit_df" in st.session_state:
                 disabled=True,
                 width="medium",
             ),
-            "🗑️ Delete?": st.column_config.CheckboxColumn(
+            DELETE_COL: st.column_config.CheckboxColumn(
                 "Mark to Delete",
                 help="Check this box and click 'Delete Checked Rows'",
                 default=False,
@@ -495,68 +830,367 @@ if "edit_df" in st.session_state:
         if st.button("💾 Save Changes (Insert/Update)"):
             try:
                 target_obj = st.session_state.get("edit_target")
+
                 if not target_obj:
                     st.error("No object loaded for editing.")
+
                 elif "Id" not in edited_df.columns:
-                    st.error("❌ Internal error: 'Id' column missing from editor data. Please reload the records.")
+                    st.error(
+                        "❌ Internal error: 'Id' column missing from editor data. "
+                        "Please reload the records."
+                    )
+
                 else:
                     rows_to_update, rows_to_insert = compute_changes(
-                        st.session_state["edit_df"], edited_df
+                        st.session_state["edit_df"],
+                        edited_df
                     )
+
+                    # Check if there were completely blank rows ignored
+                    blank_mask = (
+                        edited_df["Id"].isna() &
+                        edited_df.drop(columns=["Id", DELETE_COL], errors="ignore")
+                            .apply(lambda row: all(pd.isna(v) or v == "" for v in row), axis=1)
+                    )
+                    if blank_mask.any():
+                        st.info("ℹ️ Blank rows were ignored. Only rows with at least one non‑empty field are inserted.")
 
                     if not rows_to_update and not rows_to_insert:
                         st.info("ℹ️ No changes detected — nothing to save.")
+
                     else:
-                        for rid, payload in rows_to_update:
-                            sf.__getattr__(target_obj).update(rid, payload)
-                        for rec in rows_to_insert:
-                            sf.__getattr__(target_obj).create(rec)
+                        update_success = 0
+                        update_failures = []
+
+                        insert_success = 0
+                        insert_failures = []
+
+                        with st.spinner("Saving inline changes..."):
+                            for rid, payload in rows_to_update:
+                                try:
+                                    sf.__getattr__(target_obj).update(rid, payload)
+                                    update_success += 1
+                                except Exception as e:
+                                    update_failures.append({
+                                        "Id": rid,
+                                        "Payload": payload,
+                                        "Error": format_salesforce_error(e)
+                                    })
+
+                            for rec in rows_to_insert:
+                                try:
+                                    sf.__getattr__(target_obj).create(rec)
+                                    insert_success += 1
+                                except Exception as e:
+                                    insert_failures.append({
+                                        "Record": rec,
+                                        "Error": format_salesforce_error(e)
+                                    })
 
                         parts = []
-                        if rows_to_update:
-                            parts.append(f"{len(rows_to_update)} updated")
-                        if rows_to_insert:
-                            parts.append(f"{len(rows_to_insert)} inserted")
-                        st.success("✅ " + ", ".join(parts) + " successfully!")
 
-                        # ------------------ REFRESH TABLE ------------------
-                        clean_filter = st.session_state.get("edit_filter", "")
-                        selected_fields = st.session_state.get("selected_fields", [])
-                        new_df = run_records_query(sf, target_obj, selected_fields, clean_filter)
-                        st.session_state["edit_df"] = new_df
-                        st.session_state["editor_version"] += 1  # force a fresh editor, drop stale drafts
-                        st.rerun()
+                        if update_success:
+                            parts.append(f"{update_success} updated")
+
+                        if insert_success:
+                            parts.append(f"{insert_success} inserted")
+
+                        if parts:
+                            st.success("✅ " + ", ".join(parts) + " successfully!")
+
+                        total_failures = len(update_failures) + len(insert_failures)
+
+                        if total_failures:
+                            st.error(f"❌ {total_failures} record(s) failed during save.")
+
+                            if update_failures:
+                                st.subheader("❌ Update Failures")
+                                st.dataframe(pd.DataFrame(update_failures), width="stretch")
+
+                            if insert_failures:
+                                st.subheader("❌ Insert Failures")
+                                st.dataframe(pd.DataFrame(insert_failures), width="stretch")
+
+                        # Refresh table only if everything succeeded
+                        if total_failures == 0:
+                            clean_filter = st.session_state.get("edit_filter", "")
+                            selected_fields = st.session_state.get("selected_fields", [])
+
+                            new_df = run_records_query(
+                                sf,
+                                target_obj,
+                                selected_fields,
+                                clean_filter
+                            )
+
+                            st.session_state["edit_df"] = new_df
+                            st.session_state["editor_version"] += 1
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Please review the errors above and correct the data. The table has not been refreshed.")
 
             except Exception as e:
                 show_error("DML error", e)
 
     with col2:
-        if st.button("🗑️ Delete Checked Rows"):
+        delete_confirm = st.checkbox(
+            "I confirm deletion of checked inline rows",
+            key="inline_delete_confirm"
+        )
+
+        if st.button("🗑️ Delete Checked Rows", disabled=not delete_confirm):
             try:
                 target_obj = st.session_state.get("edit_target")
+
                 if not target_obj:
                     st.error("No object loaded for editing.")
+
                 elif "Id" not in edited_df.columns:
-                    st.error("❌ Internal error: 'Id' column missing from editor data. Please reload the records.")
+                    st.error(
+                        "❌ Internal error: 'Id' column missing from editor data. "
+                        "Please reload the records."
+                    )
+
                 else:
-                    # Identify rows marked for deletion
-                    rows_to_delete = edited_df[edited_df["🗑️ Delete?"] == True]
+                    rows_to_delete = edited_df[edited_df[DELETE_COL] == True]
                     delete_ids = rows_to_delete["Id"].dropna().tolist()
 
                     if not delete_ids:
                         st.warning("No rows checked for deletion. Tick the 'Delete?' box first.")
+
                     else:
-                        for rid in delete_ids:
-                            sf.__getattr__(target_obj).delete(rid)
+                        delete_success = 0
+                        delete_failures = []
 
-                        st.success(f"✅ Successfully deleted {len(delete_ids)} record(s).")
+                        with st.spinner("Deleting checked records..."):
+                            for rid in delete_ids:
+                                try:
+                                    sf.__getattr__(target_obj).delete(rid)
+                                    delete_success += 1
+                                except Exception as e:
+                                    delete_failures.append({
+                                        "Id": rid,
+                                        "Error": format_salesforce_error(e)
+                                    })
 
-                        # Refresh the table
-                        clean_filter = st.session_state.get("edit_filter", "")
-                        selected_fields = st.session_state.get("selected_fields", [])
-                        new_df = run_records_query(sf, target_obj, selected_fields, clean_filter)
-                        st.session_state["edit_df"] = new_df
-                        st.session_state["editor_version"] += 1  # force a fresh editor, drop stale drafts
-                        st.rerun()
+                        if delete_success:
+                            st.success(
+                                f"✅ Successfully deleted {delete_success} record(s)."
+                            )
+
+                        if delete_failures:
+                            st.error(
+                                f"❌ {len(delete_failures)} record(s) failed during delete."
+                            )
+                            st.dataframe(
+                                pd.DataFrame(delete_failures),
+                                width="stretch"
+                            )
+
+                        # Refresh table only if everything succeeded
+                        if not delete_failures:
+                            clean_filter = st.session_state.get("edit_filter", "")
+                            selected_fields = st.session_state.get("selected_fields", [])
+
+                            new_df = run_records_query(
+                                sf,
+                                target_obj,
+                                selected_fields,
+                                clean_filter
+                            )
+
+                            st.session_state["edit_df"] = new_df
+                            st.session_state["editor_version"] += 1
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Some deletions failed. Please review the errors above. The table has not been refreshed.")
+
             except Exception as e:
                 show_error("Delete failed", e)
+
+
+st.divider()
+
+# ============================================================
+# SECTION 3: BULK CSV OPERATIONS - Insert / Update / Delete
+# ============================================================
+st.subheader("📦 3. Bulk CSV Operations")
+st.caption("Upload a CSV file to perform bulk Insert, Update, or Delete operations on Salesforce records.")
+
+bulk_obj_options = ["Select an object..."] + all_objects
+
+bulk_object = st.selectbox(
+    "Select Object for Bulk Operation",
+    options=bulk_obj_options,
+    index=0,
+    key="bulk_object_selector"
+)
+
+bulk_operation = st.radio(
+    "Select Bulk Operation",
+    options=["Insert", "Update", "Delete"],
+    horizontal=True,
+    key="bulk_operation_selector"
+)
+
+uploaded_csv = st.file_uploader(
+    "Upload file as CSV",
+    type=["csv"],
+    key=f"bulk_csv_uploader_{bulk_object}_{bulk_operation}"
+)
+
+if uploaded_csv is not None:
+    try:
+        if bulk_object == "Select an object...":
+            st.error("❌ Please select a valid object for bulk operation.")
+
+        else:
+            bulk_df = pd.read_csv(uploaded_csv)
+            bulk_df = normalize_csv_columns(bulk_df)
+
+            st.subheader("👀 CSV Preview")
+
+            ROW_PX = 35
+            HEADER_PX = 38
+            dynamic_height = max(HEADER_PX + ROW_PX * len(bulk_df), 120)
+            dynamic_height = min(dynamic_height, 650)
+
+            st.dataframe(bulk_df, width="stretch", height=dynamic_height)
+            st.caption(
+                f"Previewing {len(bulk_df)} row(s) and "
+                f"{len(bulk_df.columns)} column(s)."
+            )
+
+            validation_errors, validation_warnings = validate_bulk_csv_fields(
+                sf,
+                bulk_object,
+                bulk_df,
+                bulk_operation
+            )
+
+            for warning in validation_warnings:
+                st.warning("⚠️ " + warning)
+
+            if validation_errors:
+                for err in validation_errors:
+                    st.error("❌ " + err)
+
+            else:
+                bulk_records = prepare_bulk_records_from_csv(
+                    bulk_df,
+                    bulk_operation
+                )
+
+                if not bulk_records:
+                    st.warning("⚠️ No valid records found in uploaded CSV.")
+
+                else:
+                    st.info(
+                        f"Ready to perform bulk {bulk_operation.lower()} "
+                        f"for {len(bulk_records)} record(s) on {bulk_object}."
+                    )
+
+                    if bulk_operation == "Insert":
+                        st.caption(
+                            "Criteria: Id field is not required for bulk insertion. "
+                            "Salesforce will auto-populate Id."
+                        )
+
+                    elif bulk_operation == "Update":
+                        st.caption(
+                            "Criteria: Id and at least one update field are "
+                            "required for bulk updation."
+                        )
+
+                    elif bulk_operation == "Delete":
+                        st.caption(
+                            "Criteria: Only Id field is required for bulk deletion."
+                        )
+
+                    confirm_bulk = st.checkbox(
+                        f"I confirm bulk {bulk_operation.lower()} operation on {bulk_object}",
+                        key=f"confirm_bulk_{bulk_object}_{bulk_operation}"
+                    )
+
+                    proceed_bulk = st.button(
+                        f"🚀 Proceed Bulk {bulk_operation}",
+                        disabled=not confirm_bulk,
+                        key=f"proceed_bulk_{bulk_object}_{bulk_operation}"
+                    )
+
+                    if proceed_bulk:
+                        try:
+                            progress_bar = st.progress(0)
+                            status_placeholder = st.empty()
+
+                            with st.spinner(
+                                f"Running bulk {bulk_operation.lower()}..."
+                            ):
+                                results = run_bulk_operation_with_progress(
+                                    sf=sf,
+                                    object_name=bulk_object,
+                                    operation=bulk_operation,
+                                    records=bulk_records,
+                                    batch_size=200,
+                                    progress_bar=progress_bar,
+                                    status_placeholder=status_placeholder
+                                )
+
+                            progress_bar.progress(1.0)
+
+                            success_count, failure_count, failed_rows = (
+                                summarize_bulk_results(results)
+                            )
+
+                            st.subheader("📊 Bulk Operation Summary")
+
+                            st.write(f"**Object:** {bulk_object}")
+                            st.write(f"**Operation:** {bulk_operation}")
+                            st.write(f"**Total records submitted:** {len(bulk_records)}")
+                            st.write(f"**Successful records:** {success_count}")
+                            st.write(f"**Failed records:** {failure_count}")
+
+                            if success_count:
+                                st.success(
+                                    f"✅ Bulk {bulk_operation.lower()} completed: "
+                                    f"{success_count} record(s) succeeded."
+                                )
+
+                            if failure_count:
+                                st.error(
+                                    f"❌ Bulk {bulk_operation.lower()} completed with "
+                                    f"{failure_count} failed record(s)."
+                                )
+
+                                failed_df = pd.DataFrame(failed_rows)
+
+                                st.subheader("❌ Failed Records")
+
+                                ROW_PX = 35
+                                HEADER_PX = 38
+                                dynamic_height = max(HEADER_PX + ROW_PX * len(failed_df), 120)
+                                dynamic_height = min(dynamic_height, 650)
+
+                                st.dataframe(failed_df, width="stretch", height=dynamic_height)
+
+                                failed_csv = failed_df.to_csv(index=False)
+
+                                st.download_button(
+                                    label="⬇️ Download Failed Records",
+                                    data=failed_csv,
+                                    file_name=(
+                                        f"failed_bulk_"
+                                        f"{bulk_operation.lower()}_"
+                                        f"{bulk_object}.csv"
+                                    ),
+                                    mime="text/csv"
+                                )
+
+                            if failure_count == 0:
+                                st.success("🎉 All records processed successfully.")
+
+                        except Exception as e:
+                            show_error(f"Bulk {bulk_operation} failed", e)
+
+    except Exception as e:
+        show_error("CSV processing failed", e)
