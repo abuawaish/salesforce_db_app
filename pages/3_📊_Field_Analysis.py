@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from collections import Counter
 
 
@@ -25,88 +24,78 @@ if "sf" not in st.session_state or not st.session_state.get("config_ok"):
 sf = st.session_state["sf"]
 
 # ------------------------------------------------------------
+# Session-state caches (persist across page navigation)
+# ------------------------------------------------------------
+# Describe results keyed by object name — fetched once, reused instantly.
+if "fa_describe_cache" not in st.session_state:
+    st.session_state["fa_describe_cache"] = {}
+
+# Global object list — fetched once per session.
+if "fa_all_objects" not in st.session_state:
+    st.session_state["fa_all_objects"] = sorted(
+        obj["name"] for obj in sf.describe()["sobjects"]
+    )
+
+# ------------------------------------------------------------
 # Helper functions
 # ------------------------------------------------------------
 def get_object_metadata(object_name):
-    """Fetch full describe result for an object."""
-    return sf.__getattr__(object_name).describe()
+    """Return describe result from cache; only hits the API on first call."""
+    cache = st.session_state["fa_describe_cache"]
+    if object_name not in cache:
+        cache[object_name] = sf.__getattr__(object_name).describe()
+    return cache[object_name]
+
 
 def compute_stats(describe_result):
-    """
-    Compute all statistics from the describe result.
-    Returns a dict with keys: total_fields, relationships, custom_fields,
-    required_fields, child_relations, field_types, stats_for_bar.
-    """
     fields = describe_result["fields"]
     child_rels = describe_result.get("childRelationships", [])
 
-    # Total fields
     total_fields = len(fields)
-
-    # Relationships: fields of type 'reference' that have a relationshipName
     relationships = [f for f in fields if f["type"] == "reference" and f.get("relationshipName")]
-    total_relationships = len(relationships)
-
-    # Custom fields: end with '__c'
     custom_fields = [f for f in fields if f["name"].endswith("__c")]
-    total_custom = len(custom_fields)
-
-    # Required fields: nillable == False
     required_fields = [f for f in fields if f.get("nillable") == False]
-    total_required = len(required_fields)
-
-    # Child relations
     child_relations = [cr for cr in child_rels if cr.get("childSObject")]
-    total_child_relations = len(child_relations)
 
-    # Field type distribution (for pie chart)
     type_counts = Counter(f["type"] for f in fields)
     field_types_df = pd.DataFrame(list(type_counts.items()), columns=["Field Type", "Count"])
 
-    # Bar chart statistics: Custom, Standard, Required, Unique, Lookup, Formula
-    standard_fields = total_fields - total_custom
+    standard_fields = total_fields - len(custom_fields)
     unique_fields = [f for f in fields if f.get("unique", False)]
-    total_unique = len(unique_fields)
-    # Lookup fields: reference type but NOT master-detail
-    lookup_fields = [f for f in fields if f["type"] == "reference" and f.get("relationshipName") and not f.get("calculated", False)]
-    total_lookup = len(lookup_fields)
-    # Formula fields: type 'formula' or 'summary' or 'calculated'
+    lookup_fields = [
+        f for f in fields
+        if f["type"] == "reference" and f.get("relationshipName") and not f.get("calculated", False)
+    ]
     formula_fields = [f for f in fields if f["type"] in ["formula", "summary", "calculated"]]
-    total_formula = len(formula_fields)
 
     stats_for_bar = {
-        "Custom": total_custom,
+        "Custom": len(custom_fields),
         "Standard": standard_fields,
-        "Required": total_required,
-        "Unique": total_unique,
-        "Lookup": total_lookup,
-        "Formula": total_formula,
+        "Required": len(required_fields),
+        "Unique": len(unique_fields),
+        "Lookup": len(lookup_fields),
+        "Formula": len(formula_fields),
     }
 
     return {
         "total_fields": total_fields,
-        "relationships": total_relationships,
-        "custom_fields": total_custom,
-        "required_fields": total_required,
-        "child_relations": total_child_relations,
+        "relationships": len(relationships),
+        "custom_fields": len(custom_fields),
+        "required_fields": len(required_fields),
+        "child_relations": len(child_relations),
         "field_types_df": field_types_df,
         "stats_for_bar": stats_for_bar,
     }
 
+
 # ------------------------------------------------------------
 # History state helpers
 # ------------------------------------------------------------
-
 def _default_analysis_state():
     return {
         "object": "-- Select an object to analyze --",
         "picklist": "-- Select a picklist field --",
     }
-
-
-def ensure_widget_state(key, default_value):
-    if key not in st.session_state:
-        st.session_state[key] = default_value
 
 
 def ensure_widget_state(key, default_value):
@@ -192,7 +181,6 @@ def _set_analysis_state(target_state):
 def go_back():
     if not st.session_state.history_stack:
         return
-
     current_state = st.session_state.field_analysis_state.copy()
     target_state = st.session_state.history_stack.pop()
     st.session_state.future_stack.append(current_state)
@@ -202,7 +190,6 @@ def go_back():
 def go_forward():
     if not st.session_state.future_stack:
         return
-
     current_state = st.session_state.field_analysis_state.copy()
     target_state = st.session_state.future_stack.pop()
     st.session_state.history_stack.append(current_state)
@@ -210,15 +197,13 @@ def go_forward():
 
 
 # ------------------------------------------------------------
-# Object selection with placeholder
+# Object selection
 # ------------------------------------------------------------
 init_history_state()
 ensure_widget_state("field_analysis_object", st.session_state.field_analysis_state["object"])
 ensure_widget_state("field_analysis_picklist", st.session_state.field_analysis_state["picklist"])
 
-all_objects = [obj["name"] for obj in sf.describe()["sobjects"]]
-all_objects_sorted = sorted(all_objects)
-object_options = ["-- Select an object to analyze --"] + all_objects_sorted
+object_options = ["-- Select an object to analyze --"] + st.session_state["fa_all_objects"]
 
 selected_object = st.selectbox(
     "Select an object to analyze",
@@ -240,154 +225,147 @@ with button_col3:
 # Load and display stats only if a real object is selected
 # ------------------------------------------------------------
 if selected_object and selected_object != "-- Select an object to analyze --":
-    with st.spinner(f"Fetching metadata for {selected_object}..."):
-        try:
+    already_cached = selected_object in st.session_state["fa_describe_cache"]
+    try:
+        # Show spinner only on first fetch; cached objects render instantly.
+        if not already_cached:
+            with st.spinner(f"Fetching metadata for **{selected_object}**..."):
+                describe = get_object_metadata(selected_object)
+        else:
             describe = get_object_metadata(selected_object)
-            stats = compute_stats(describe)
-            fields = describe["fields"]
 
-            # ---- Display key metrics in columns ----
-            col1, col2, col3, col4, col5 = st.columns(5)
-            col1.metric("Total Fields", stats["total_fields"])
-            col2.metric("Relationships", stats["relationships"])
-            col3.metric("Custom Fields", stats["custom_fields"])
-            col4.metric("Required Fields", stats["required_fields"])
-            col5.metric("Child Relations", stats["child_relations"])
+        stats = compute_stats(describe)
+        fields = describe["fields"]
 
-            st.divider()
+        # ---- Key metrics ----
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.metric("Total Fields", stats["total_fields"])
+        col2.metric("Relationships", stats["relationships"])
+        col3.metric("Custom Fields", stats["custom_fields"])
+        col4.metric("Required Fields", stats["required_fields"])
+        col5.metric("Child Relations", stats["child_relations"])
 
-            # ---- Charts ----
-            chart_col1, chart_col2 = st.columns(2)
+        st.divider()
 
-            # Pie chart: Field Type Distribution
-            with chart_col1:
-                st.subheader("📈 Field Type Distribution")
-                fig_pie = px.pie(
-                    stats["field_types_df"],
-                    values="Count",
-                    names="Field Type",
-                    title=f"Field Types in {selected_object}",
-                    color_discrete_sequence=px.colors.qualitative.Set3,
-                    hole=0.3,
-                )
-                fig_pie.update_layout(
-                    template="plotly_dark",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="white"),
-                    margin=dict(l=20, r=20, t=40, b=20),
-                )
-                st.plotly_chart(fig_pie, width='stretch')
+        # ---- Charts ----
+        chart_col1, chart_col2 = st.columns(2)
 
-            # Bar chart: Field Statistics
-            with chart_col2:
-                st.subheader("📊 Field Statistics")
-                stats_df = pd.DataFrame(
-                    list(stats["stats_for_bar"].items()),
-                    columns=["Category", "Count"]
-                )
-                fig_bar = px.bar(
-                    stats_df,
-                    x="Category",
-                    y="Count",
-                    title="Field Stats",
-                    color="Category",
-                    color_discrete_sequence=px.colors.qualitative.Pastel,
-                    text="Count",
-                )
-                fig_bar.update_traces(textposition="outside")
-                fig_bar.update_layout(
-                    template="plotly_dark",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="white"),
-                    xaxis=dict(title=""),
-                    yaxis=dict(title="Count"),
-                    margin=dict(l=20, r=20, t=40, b=20),
-                    showlegend=False,
-                )
-                st.plotly_chart(fig_bar, width='stretch')
+        with chart_col1:
+            st.subheader("📈 Field Type Distribution")
+            fig_pie = px.pie(
+                stats["field_types_df"],
+                values="Count",
+                names="Field Type",
+                title=f"Field Types in {selected_object}",
+                color_discrete_sequence=px.colors.qualitative.Set3,
+                hole=0.3,
+            )
+            fig_pie.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="white"),
+                margin=dict(l=20, r=20, t=40, b=20),
+            )
+            st.plotly_chart(fig_pie, width='stretch')
 
-            # ---- Optional: show field details in a table (collapsible) ----
-            with st.expander("📋 View All Fields (Detailed)"):
-                fields_df = pd.DataFrame([
-                    {
-                        "Field Name": f["name"],
-                        "Label": f["label"],
-                        "Type": f["type"],
-                        "Required": not f.get("nillable", True),
-                        "Unique": f.get("unique", False),
-                        "Custom": "✅" if f["name"].endswith("__c") else "",
-                        "Relationship": f.get("relationshipName", ""),
-                    }
-                    for f in fields
-                ])
-                st.dataframe(fields_df, width="stretch", height=400)
+        with chart_col2:
+            st.subheader("📊 Field Statistics")
+            stats_df = pd.DataFrame(
+                list(stats["stats_for_bar"].items()),
+                columns=["Category", "Count"]
+            )
+            fig_bar = px.bar(
+                stats_df,
+                x="Category",
+                y="Count",
+                title="Field Stats",
+                color="Category",
+                color_discrete_sequence=px.colors.qualitative.Pastel,
+                text="Count",
+            )
+            fig_bar.update_traces(textposition="outside")
+            fig_bar.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="white"),
+                xaxis=dict(title=""),
+                yaxis=dict(title="Count"),
+                margin=dict(l=20, r=20, t=40, b=20),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_bar, width='stretch')
 
-            # ============================================================
-            # Picklist Exporter
-            # ============================================================
-            st.divider()
-            st.subheader("📋 Picklist Exporter")
+        # ---- Field details table ----
+        with st.expander("📋 View All Fields (Detailed)"):
+            fields_df = pd.DataFrame([
+                {
+                    "Field Name": f["name"],
+                    "Label": f["label"],
+                    "Type": f["type"],
+                    "Required": not f.get("nillable", True),
+                    "Unique": f.get("unique", False),
+                    "Custom": "✅" if f["name"].endswith("__c") else "",
+                    "Relationship": f.get("relationshipName", ""),
+                }
+                for f in fields
+            ])
+            st.dataframe(fields_df, width="stretch", height=400)
 
-            # Filter fields that are picklist or multipicklist
-            picklist_fields = [f for f in fields if f["type"] in ["picklist", "multipicklist"]]
+        # ============================================================
+        # Picklist Exporter
+        # ============================================================
+        st.divider()
+        st.subheader("📋 Picklist Exporter")
 
-            if not picklist_fields:
-                st.info(f"ℹ️ No picklist fields found on {selected_object}.")
-            else:
-                # Show total count
-                st.metric("Total Picklist Fields", len(picklist_fields))
+        picklist_fields = [f for f in fields if f["type"] in ["picklist", "multipicklist"]]
 
-                # 🔥 NEW: Add placeholder for picklist dropdown
-                picklist_options = {f["name"]: f"{f['name']} ({f['label']})" for f in picklist_fields}
-                picklist_names = list(picklist_options.keys())
+        if not picklist_fields:
+            st.info(f"ℹ️ No picklist fields found on {selected_object}.")
+        else:
+            st.metric("Total Picklist Fields", len(picklist_fields))
 
-                # Add placeholder at the beginning
-                picklist_options_with_placeholder = ["-- Select a picklist field --"] + picklist_names
+            picklist_options = {f["name"]: f"{f['name']} ({f['label']})" for f in picklist_fields}
+            picklist_options_with_placeholder = ["-- Select a picklist field --"] + list(picklist_options.keys())
 
-                selected_picklist = st.selectbox(
-                    "Select a picklist field to view its values",
-                    options=picklist_options_with_placeholder,
-                    key="field_analysis_picklist",
-                    on_change=on_picklist_change,
-                    format_func=lambda x: picklist_options[x] if x in picklist_options else x,
-                    help="Choose a picklist field to see all allowed values."
-                )
+            selected_picklist = st.selectbox(
+                "Select a picklist field to view its values",
+                options=picklist_options_with_placeholder,
+                key="field_analysis_picklist",
+                on_change=on_picklist_change,
+                format_func=lambda x: picklist_options[x] if x in picklist_options else x,
+                help="Choose a picklist field to see all allowed values."
+            )
 
-                # Only show values if a real picklist is selected
-                if selected_picklist and selected_picklist != "-- Select a picklist field --":
-                    # Find the field describe
+            if selected_picklist and selected_picklist != "-- Select a picklist field --":
+                with st.spinner(f"Loading values for **{picklist_options.get(selected_picklist, selected_picklist)}**..."):
                     field_describe = next(f for f in picklist_fields if f["name"] == selected_picklist)
                     picklist_values = field_describe.get("picklistValues", [])
 
-                    if picklist_values:
-                        # Create a dataframe of values with their label and if they are active
-                        values_df = pd.DataFrame([
-                            {
-                                "Label": val["label"],
-                                "Value": val["value"],
-                                "Active": val.get("active", True),
-                                "Default": val.get("defaultValue", False),
-                            }
-                            for val in picklist_values
-                        ])
-                        
-                        ROW_PX = 35
-                        HEADER_PX = 38
-                        dynamic_height = max(HEADER_PX + ROW_PX * len(values_df), 120)
-                        dynamic_height = min(dynamic_height, 650)
+                if picklist_values:
+                    values_df = pd.DataFrame([
+                        {
+                            "Label": val["label"],
+                            "Value": val["value"],
+                            "Active": val.get("active", True),
+                            "Default": val.get("defaultValue", False),
+                        }
+                        for val in picklist_values
+                    ])
 
-                        st.dataframe(values_df, width="stretch", height=dynamic_height)
-                        st.caption(f"Showing {len(picklist_values)} values.")
-                    else:
-                        st.info("This picklist has no defined values (or it is a global picklist).")
+                    ROW_PX, HEADER_PX = 35, 38
+                    dynamic_height = min(max(HEADER_PX + ROW_PX * len(values_df), 120), 650)
+
+                    st.dataframe(values_df, width="stretch", height=dynamic_height)
+                    st.caption(f"Showing {len(picklist_values)} values.")
                 else:
-                    st.info("👈 **Please select a picklist field from the dropdown above to view its values.**")
+                    st.info("This picklist has no defined values (or it is a global picklist).")
+            else:
+                st.info("👈 **Please select a picklist field from the dropdown above to view its values.**")
 
-        except Exception as e:
-            st.error(f"❌ Failed to analyze object: {e}")
-            st.code(str(e), language="text")
+    except Exception as e:
+        st.error(f"❌ Failed to analyze object: {e}")
+        st.code(str(e), language="text")
 else:
-    # Show a prompt when no object is selected
     st.info("👈 **Please select an object from the dropdown above to begin the analysis.**")
