@@ -14,6 +14,29 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------
+# Check connection
+# ------------------------------------------------------------
+if "sf" not in st.session_state or not st.session_state.get("config_ok"):
+    st.warning("Please configure your Salesforce connection first (⚙️ Configuration page).")
+    st.stop()
+
+sf = st.session_state["sf"]
+
+# ------------------------------------------------------------
+# Session-state caches (shared with Field Analysis page)
+# ------------------------------------------------------------
+# Describe results keyed by object name — fetched once, reused instantly
+# across both this page and Field Analysis.
+if "fa_describe_cache" not in st.session_state:
+    st.session_state["fa_describe_cache"] = {}
+
+# Global object list — fetched once per session.
+if "fa_all_objects" not in st.session_state:
+    st.session_state["fa_all_objects"] = sorted(
+        obj["name"] for obj in sf.describe()["sobjects"]
+    )
+
+# ------------------------------------------------------------
 # Constant for delete checkbox column name
 # ------------------------------------------------------------
 DELETE_COL = "🗑️ Delete?"
@@ -21,17 +44,22 @@ DELETE_COL = "🗑️ Delete?"
 # ------------------------------------------------------------
 # Helper functions
 # ------------------------------------------------------------
-@st.cache_data(ttl=300, hash_funcs={"_sf": lambda _: None})
-def get_object_fields(_sf, object_name: str):
+def _get_describe(object_name: str) -> dict:
+    """Return full describe from session cache; only hits API on first call."""
+    cache = st.session_state["fa_describe_cache"]
+    if object_name not in cache:
+        cache[object_name] = sf.__getattr__(object_name).describe()
+    return cache[object_name]
+
+
+def get_object_fields(object_name: str):
     try:
-        describe = _sf.__getattr__(object_name).describe()
-        return [f["name"] for f in describe["fields"]]
+        return [f["name"] for f in _get_describe(object_name)["fields"]]
     except Exception:
         return []
 
 
-@st.cache_data(ttl=300, hash_funcs={"_sf": lambda _: None})
-def get_object_field_metadata(_sf, object_name: str):
+def get_object_field_metadata(object_name: str):
     """
     Returns Salesforce field metadata for the selected object.
 
@@ -40,8 +68,7 @@ def get_object_field_metadata(_sf, object_name: str):
     - checking createable/updateable permissions
     """
     try:
-        describe = _sf.__getattr__(object_name).describe()
-        return {f["name"]: f for f in describe["fields"]}
+        return {f["name"]: f for f in _get_describe(object_name)["fields"]}
     except Exception:
         return {}
 
@@ -329,7 +356,7 @@ def normalize_csv_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def validate_bulk_csv_fields(sf, object_name: str, df: pd.DataFrame, operation: str):
+def validate_bulk_csv_fields(object_name: str, df: pd.DataFrame, operation: str):
     """
     Validate uploaded CSV columns based on operation type.
 
@@ -353,7 +380,7 @@ def validate_bulk_csv_fields(sf, object_name: str, df: pd.DataFrame, operation: 
         errors.append("Uploaded CSV file is empty.")
         return errors, warnings
 
-    field_metadata = get_object_field_metadata(sf, object_name)
+    field_metadata = get_object_field_metadata(object_name)
     if not field_metadata:
         errors.append(
             f"You don't have permission to describe object '{object_name}', "
@@ -570,18 +597,9 @@ def summarize_bulk_results(results):
 
     return success_count, failure_count, failed_rows
 
-
-# ------------------------------------------------------------
-# Check connection
-# ------------------------------------------------------------
-if "sf" not in st.session_state or not st.session_state.get("config_ok"):
-    st.warning("Please configure your Salesforce connection first (⚙️ Configuration page).")
-    st.stop()
-
-sf = st.session_state["sf"]
 init_soql_history()
 
-all_objects = [obj["name"] for obj in sf.describe()["sobjects"]]
+all_objects = st.session_state["fa_all_objects"]
 
 # Tracks fresh editor versions to avoid stale Streamlit data_editor drafts.
 st.session_state.setdefault("editor_version", 0)
@@ -666,7 +684,7 @@ with history_col1:
         on_change=select_history_query,
         help="Select a previously executed SOQL query to reload it into the query box.",
     )
-    
+
     if not st.session_state.soql_history:
         st.caption("No saved SOQL queries yet. Run a query to add it to history.")
 
@@ -737,7 +755,8 @@ selected_obj_label = st.selectbox(
 
 if selected_obj_label != "Select an object...":
     obj_for_edit = selected_obj_label
-    all_fields = get_object_fields(sf, obj_for_edit)
+    # Uses session-state cache — instant if already described on Field Analysis page
+    all_fields = get_object_fields(obj_for_edit)
 else:
     obj_for_edit = None
     all_fields = []
@@ -1061,8 +1080,8 @@ if uploaded_csv is not None:
                 f"{len(bulk_df.columns)} column(s)."
             )
 
+            # Uses session-state cache — no extra API call if object was already described
             validation_errors, validation_warnings = validate_bulk_csv_fields(
-                sf,
                 bulk_object,
                 bulk_df,
                 bulk_operation
