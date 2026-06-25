@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import re
+import time
 
 # ------------------------------------------------------------
 # Page Configuration
@@ -40,6 +41,8 @@ if "fa_all_objects" not in st.session_state:
 # Constant for delete checkbox column name
 # ------------------------------------------------------------
 DELETE_COL = "🗑️ Delete?"
+TRANSIENT_MESSAGE_SECONDS = 5
+WRITE_EXCLUDED_COLUMNS = {"attributes", DELETE_COL}
 
 # ------------------------------------------------------------
 # Helper functions
@@ -137,9 +140,12 @@ def show_error(title: str, e: Exception):
     in an expander, instead of dumping the full request/response repr
     straight into the UI.
     """
+    def _clean_exception_text(text: str) -> str:
+        return re.sub(r"\s+", " ", text).strip()
+
     st.error(f"❌ **{title}:** {format_salesforce_error(e)}")
     with st.expander("Show technical details"):
-        st.code(str(e), language="text")
+        st.code(_clean_exception_text(str(e)), language="text")
 
 
 def init_soql_history():
@@ -333,6 +339,101 @@ def run_records_query(sf, object_name, selected_fields, where_clause):
 
     df[DELETE_COL] = False
     return df
+
+
+def _is_blank(value):
+    if value is None:
+        return True
+    try:
+        if pd.isna(value):
+            return True
+    except Exception:
+        pass
+    return value == ""
+
+
+def _same_value(old_value, new_value):
+    try:
+        if pd.isna(old_value) and pd.isna(new_value):
+            return True
+    except Exception:
+        pass
+    return old_value == new_value
+
+
+def get_salesforce_writeable_fields(field_metadata):
+    createable_fields = {
+        field["name"] for field in field_metadata
+        if field.get("createable", False)
+    }
+    updateable_fields = {
+        field["name"] for field in field_metadata
+        if field.get("updateable", False)
+    }
+    return createable_fields, updateable_fields
+
+
+def show_temporary_message(message, level="warning", seconds=TRANSIENT_MESSAGE_SECONDS):
+    placeholder = st.empty()
+    if level == "error":
+        placeholder.error(message)
+    elif level == "success":
+        placeholder.success(message)
+    elif level == "info":
+        placeholder.info(message)
+    else:
+        placeholder.warning(message)
+    time.sleep(seconds)
+    placeholder.empty()
+
+
+def build_insert_payload(row_dict, createable_fields):
+    raw_values = {}
+    for key, value in row_dict.items():
+        if key in WRITE_EXCLUDED_COLUMNS or key == "Id":
+            continue
+        if _is_blank(value):
+            continue
+        raw_values[key] = None if pd.isna(value) else value
+
+    blocked_fields = sorted(
+        field_name
+        for field_name in raw_values
+        if field_name not in createable_fields
+    )
+
+    payload = {
+        field_name: field_value
+        for field_name, field_value in raw_values.items()
+        if field_name in createable_fields
+    }
+
+    return payload, blocked_fields
+
+
+def build_update_payload(original_row, edited_row, updateable_fields):
+    changed_fields = {}
+    for key, new_value in edited_row.items():
+        if key in WRITE_EXCLUDED_COLUMNS or key == "Id":
+            continue
+        old_value = original_row.get(key)
+        if _same_value(old_value, new_value):
+            continue
+        changed_fields[key] = None if pd.isna(new_value) else new_value
+
+    blocked_fields = sorted(
+        field_name
+        for field_name in changed_fields
+        if field_name not in updateable_fields
+    )
+
+    payload = {
+        field_name: field_value
+        for field_name, field_value in changed_fields.items()
+        if field_name in updateable_fields
+    }
+
+    return payload, blocked_fields
 
 
 # ------------------------------------------------------------
@@ -802,6 +903,13 @@ if load_btn:
                 st.session_state["selected_fields"] = selected_fields
                 st.session_state["edit_filter"] = clean_filter
                 st.session_state["editor_version"] += 1
+                st.session_state["original_fetched_df"] = edit_df.copy(deep=True)
+                if "Id" in edit_df.columns:
+                    st.session_state["original_rows_by_id"] = (
+                        edit_df.set_index("Id").to_dict("index")
+                    )
+                else:
+                    st.session_state["original_rows_by_id"] = {}
 
                 st.success(
                     f"✅ Loaded {len(edit_df)} records with "
@@ -860,7 +968,7 @@ if "edit_df" in st.session_state:
                     )
 
                 else:
-                    rows_to_update, rows_to_insert = compute_changes(
+                    _, is_insert = compute_changes(
                         st.session_state["edit_df"],
                         edited_df
                     )
@@ -871,8 +979,66 @@ if "edit_df" in st.session_state:
                         edited_df.drop(columns=["Id", DELETE_COL], errors="ignore")
                             .apply(lambda row: all(pd.isna(v) or v == "" for v in row), axis=1)
                     )
-                    if blank_mask.any():
-                        st.info("ℹ️ Blank rows were ignored. Only rows with at least one non‑empty field are inserted.")
+                    if (is_insert and blank_mask.any()):
+                        st.info(
+                            "ℹ️ Blank rows were ignored. Only rows with at least one "
+                            "non‑empty field are inserted."
+                        )
+
+                    # --- Prepare metadata and writable field sets ---------------------------
+                    field_metadata = get_object_field_metadata(target_obj)
+                    createable_fields, updateable_fields = get_salesforce_writeable_fields(
+                        field_metadata.values()
+                    )
+                    original_rows_by_id = st.session_state.get("original_rows_by_id", {})
+                    # -----------------------------------------------------------------------
+
+                    # --- Build update payloads (only changed writable fields) ---------------
+                    rows_to_update = []
+                    update_rows = edited_df[edited_df["Id"].notna()]
+                    for _, row in update_rows.iterrows():
+                        row_dict = row.to_dict()
+                        record_id = row_dict.get("Id")
+                        if not record_id:
+                            continue
+                        original_row = original_rows_by_id.get(record_id, {})
+                        payload, blocked_fields = build_update_payload(
+                            original_row=original_row,
+                            edited_row=row_dict,
+                            updateable_fields=updateable_fields,
+                        )
+                        if blocked_fields:
+                            show_temporary_message(
+                                "Salesforce does not allow updating read-only/"
+                                "system-generated field(s): " + ", ".join(blocked_fields),
+                                level="warning",
+                            )
+                        if payload:
+                            rows_to_update.append((record_id, payload))
+                    # -----------------------------------------------------------------------
+
+                    # --- Build insert payloads (only createable fields) -------------------
+                    rows_to_insert = []
+                    insert_rows = edited_df[edited_df["Id"].isna()]
+                    for _, row in insert_rows.iterrows():
+                        row_dict = row.to_dict()
+                        row_dict.pop("Id", None)
+                        row_dict.pop(DELETE_COL, None)
+                        if all(v in (None, "") for v in row_dict.values()):
+                            continue
+                        payload, blocked_fields = build_insert_payload(
+                            row_dict=row_dict,
+                            createable_fields=createable_fields,
+                        )
+                        if blocked_fields:
+                            show_temporary_message(
+                                "Salesforce skipped read-only/system field(s) during insert: "
+                                + ", ".join(blocked_fields),
+                                level="warning",
+                            )
+                        if payload:
+                            rows_to_insert.append(payload)
+                    # -----------------------------------------------------------------------
 
                     if not rows_to_update and not rows_to_insert:
                         st.info("ℹ️ No changes detected — nothing to save.")
@@ -920,15 +1086,21 @@ if "edit_df" in st.session_state:
                         total_failures = len(update_failures) + len(insert_failures)
 
                         if total_failures:
-                            st.error(f"❌ {total_failures} record(s) failed during save.")
+                            st.error(
+                                f"❌ {total_failures} record(s) failed during save."
+                            )
 
                             if update_failures:
                                 st.subheader("❌ Update Failures")
-                                st.dataframe(pd.DataFrame(update_failures), width="stretch")
+                                st.dataframe(
+                                    pd.DataFrame(update_failures), width="stretch"
+                                )
 
                             if insert_failures:
                                 st.subheader("❌ Insert Failures")
-                                st.dataframe(pd.DataFrame(insert_failures), width="stretch")
+                                st.dataframe(
+                                    pd.DataFrame(insert_failures), width="stretch"
+                                )
 
                         # Refresh table only if everything succeeded
                         if total_failures == 0:
@@ -944,9 +1116,18 @@ if "edit_df" in st.session_state:
 
                             st.session_state["edit_df"] = new_df
                             st.session_state["editor_version"] += 1
+                            if "Id" in new_df.columns:
+                                st.session_state["original_rows_by_id"] = (
+                                    new_df.set_index("Id").to_dict("index")
+                                )
+                            else:
+                                st.session_state["original_rows_by_id"] = {}
                             st.rerun()
                         else:
-                            st.warning("⚠️ Please review the errors above and correct the data. The table has not been refreshed.")
+                            st.warning(
+                                "⚠️ Please review the errors above and correct the data. "
+                                "The table has not been refreshed."
+                            )
 
             except Exception as e:
                 show_error("DML error", e)
@@ -971,11 +1152,31 @@ if "edit_df" in st.session_state:
                     )
 
                 else:
-                    rows_to_delete = edited_df[edited_df[DELETE_COL] == True]
-                    delete_ids = rows_to_delete["Id"].dropna().tolist()
+                    if DELETE_COL not in edited_df.columns:
+                        edited_df[DELETE_COL] = False
+
+                    delete_mask = edited_df[DELETE_COL].fillna(False).astype(bool)
+                    rows_marked_for_delete = edited_df.loc[delete_mask].copy()
+                    delete_ids = rows_marked_for_delete["Id"].dropna().tolist()
+
+                    if not rows_marked_for_delete.empty:
+                        st.caption(
+                            f"{len(rows_marked_for_delete)} row(s) currently marked for deletion."
+                        )
 
                     if not delete_ids:
-                        st.warning("No rows checked for deletion. Tick the 'Delete?' box first.")
+                        if rows_marked_for_delete.empty:
+                            st.info(
+                                f"No rows are currently marked for deletion. "
+                                f"Tick the '{DELETE_COL}' checkbox for the row(s) "
+                                f"you want to delete, then click delete again."
+                            )
+                        else:
+                            st.warning(
+                                "Checked rows for deletion have no Salesforce ID. "
+                                "Only existing records can be deleted; new/unsaved "
+                                "rows will be ignored."
+                            )
 
                     else:
                         delete_success = 0
@@ -1020,9 +1221,18 @@ if "edit_df" in st.session_state:
 
                             st.session_state["edit_df"] = new_df
                             st.session_state["editor_version"] += 1
+                            if "Id" in new_df.columns:
+                                st.session_state["original_rows_by_id"] = (
+                                    new_df.set_index("Id").to_dict("index")
+                                )
+                            else:
+                                st.session_state["original_rows_by_id"] = {}
                             st.rerun()
                         else:
-                            st.warning("⚠️ Some deletions failed. Please review the errors above. The table has not been refreshed.")
+                            st.warning(
+                                "⚠️ Some deletions failed. Please review the errors above. "
+                                "The table has not been refreshed."
+                            )
 
             except Exception as e:
                 show_error("Delete failed", e)
