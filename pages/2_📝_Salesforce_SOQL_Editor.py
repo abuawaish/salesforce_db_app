@@ -141,7 +141,7 @@ def show_error(title: str, e: Exception):
     straight into the UI.
     """
     def _clean_exception_text(text: str) -> str:
-        return re.sub(r"\s+", " ", text).strip()
+        return re.sub(r"\s+", " ", text).strip().replace("\\n", "")
 
     st.error(f"❌ **{title}:** {format_salesforce_error(e)}")
     with st.expander("Show technical details"):
