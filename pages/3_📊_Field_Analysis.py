@@ -23,6 +23,25 @@ if "sf" not in st.session_state or not st.session_state.get("config_ok"):
 
 sf = st.session_state["sf"]
 
+st.title("📊 Field Analysis")
+st.caption("Inspect Salesforce object field metadata and relationships.")
+
+btn_spacer, btn_col1, btn_col2 = st.columns([4, 1, 1])
+with btn_col1:
+    if st.button("🔄 Refresh Data", width="stretch", type="secondary"):
+        st.cache_data.clear()
+        st.session_state.pop("fa_describe_cache", None)
+        st.session_state.pop("fa_all_objects", None)
+        st.rerun()
+with btn_col2:
+    if st.button("🗑️ Clear Cache", width="stretch", type="secondary"):
+        st.cache_data.clear()
+        st.session_state.pop("fa_describe_cache", None)
+        st.session_state.pop("fa_all_objects", None)
+        st.toast("Cache cleared! Data will refresh on next load.", icon="✅")
+
+st.divider()
+
 # ------------------------------------------------------------
 # Session-state caches (persist across page navigation)
 # ------------------------------------------------------------

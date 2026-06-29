@@ -2,3 +2,5 @@ streamlit
 pandas
 simple-salesforce
 plotly
+zeep
+requests
