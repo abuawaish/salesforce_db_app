@@ -47,7 +47,16 @@ Also on the `Salesforce SOQL Editor` page:
 - Insert new rows, update modified rows, and delete checked rows.
 - Automatically detect real changes to avoid unnecessary updates.
 
-### 4. Field Analysis
+### 4. Bulkification
+
+Also on the `Salesforce SOQL Editor` page:
+
+- Perform bulk record operations in the SOQL editor using Salesforce-compliant batch logic.
+- Select multiple records and apply insert, update, or delete actions together.
+- Reduce API round trips and improve throughput for large data changes.
+- View bulk operation progress and error feedback directly in the app.
+
+### 5. Field Analysis
 
 Found under the `Field Analysis` page:
 
@@ -57,12 +66,35 @@ Found under the `Field Analysis` page:
 - Browse detailed field rows with labels, types, lookup relationships, and custom field flags.
 - Inspect picklist values for picklist and multipicklist fields.
 
+### 6. Object Manager
+
+Found under the `Object Manager` page:
+
+- Create new custom objects and define custom fields (Text, Number, Picklist, etc.) using the Metadata API.
+- Modify or delete existing custom fields on any object.
+- Browse all available Salesforce objects in the connected org.
+- View object labels, API names, field counts, and record counts at a glance.
+- Search and filter objects for faster navigation.
+- Expand object details to inspect schema metadata and relationship summaries.
+
+### 7. Session Information
+
+Found under the `Session Information` page:
+
+- Display the current Salesforce connection status and org details.
+- Show the active username, instance URL, and API version in use.
+- Provide helpful connection diagnostics for troubleshooting login issues.
+- Allow users to verify whether the app is connected to Production or Sandbox.
+- Useful for verifying that the app is connected to the correct Salesforce org before performing operations.
+
 ## Repository Structure
 
 - `app.py` - Main Streamlit homepage, custom styling, and feature overview.
 - `pages/1_⚙️_Configuration.py` - Salesforce connection setup.
 - `pages/2_📝_Salesforce_SOQL_Editor.py` - SOQL query runner and inline record editor.
 - `pages/3_📊_Field_Analysis.py` - Salesforce object metadata and field analysis.
+- `pages/4_📦_Object_Manager.py` - Object manager for browsing and managing Salesforce objects.
+- `pages/5_👤_Session_Info.py` - Session information page showing current Salesforce connection details.
 - `requirements.txt` - Python dependencies.
 - `pyproject.toml` - Dependency group definitions for the app.
 
@@ -74,6 +106,8 @@ The app relies on the following packages:
 - `pandas`
 - `simple-salesforce`
 - `plotly`
+- `requests`
+- `zeep`
 
 ## Installation
 
