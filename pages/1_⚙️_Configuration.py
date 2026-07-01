@@ -1,5 +1,6 @@
 import streamlit as st
 from simple_salesforce import Salesforce
+import time 
 
 # ------------------------------------------------------------
 # Page Configuration
@@ -45,6 +46,7 @@ st.markdown("""
         color: #721c24;
         font-weight: 500;
         margin-top: 8px;
+        margin-bottom: 12px;
     }
     .info-box {
         padding: 10px 14px;
@@ -107,13 +109,23 @@ with st.form("config_form"):
     )
     st.write("")  # spacing
 
-    submitted = st.form_submit_button("🔌 Test Connection", use_container_width=True)
+    if st.session_state.get("config_ok") and "sf" in st.session_state:
+        action = st.form_submit_button("🔌 Disconnect", width="stretch")
+    else:
+        action = st.form_submit_button("🔌 Test Connection", width="stretch")
 
 # ------------------------------------------------------------
-# Handle connection test
+# Handle connection test or disconnect
 # ------------------------------------------------------------
-if submitted:
-    if not username or not password:
+if action:
+    if st.session_state.get("config_ok") and "sf" in st.session_state:
+        st.session_state["config_ok"] = False
+        st.session_state.pop("sf", None)
+        st.session_state.pop("username", None)
+        st.toast("Successfully disconnected from the Salesforce org.", icon="✅")
+        time.sleep(1.5)
+        st.rerun()
+    elif not username or not password:
         st.error("❌ Please enter both username and password.")
     else:
         try:
@@ -136,15 +148,9 @@ if submitted:
             st.session_state["config_ok"] = True
             st.session_state["username"] = username
 
-            st.markdown(
-                f"""
-                <div class="success-box">
-                    ✅ <strong>Connected successfully!</strong><br>
-                    Authenticated to <strong>{env}</strong> as <code>{username}</code>.
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            st.toast(f"Connected successfully! Authenticated to {env} as {username}", icon="✅")
+            time.sleep(1.5)
+            st.rerun()
 
         except Exception as e:
             # Clear any previous connection
@@ -203,5 +209,5 @@ if st.session_state.get("config_ok") and "sf" in st.session_state:
         """,
         unsafe_allow_html=True
     )
-elif not submitted:
+elif not action:
     st.caption("Fill in your credentials above and click 'Test Connection' to authenticate.")
