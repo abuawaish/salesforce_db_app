@@ -1,6 +1,6 @@
-streamlit
-pandas
-simple-salesforce
-plotly
-zeep
-requests
+streamlit==1.58.0
+pandas==2.3.3
+simple-salesforce==1.12.9
+plotly==6.8.0
+zeep==4.3.3
+requests==2.34.2
