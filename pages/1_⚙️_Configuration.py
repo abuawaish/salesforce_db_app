@@ -1,6 +1,11 @@
 import streamlit as st
 from simple_salesforce import Salesforce
-import time 
+import time
+from permissions import (
+    init_access_mode,
+    load_permission_profile,
+    render_access_mode_toggle,
+)
 
 # ------------------------------------------------------------
 # Page Configuration
@@ -122,6 +127,9 @@ if action:
         st.session_state["config_ok"] = False
         st.session_state.pop("sf", None)
         st.session_state.pop("username", None)
+        st.session_state.pop("profile_name", None)
+        st.session_state.pop("can_modify_schema", None)
+        st.session_state.pop("access_mode", None)
         st.toast("Successfully disconnected from the Salesforce org.", icon="✅")
         time.sleep(1.5)
         st.rerun()
@@ -148,7 +156,19 @@ if action:
             st.session_state["config_ok"] = True
             st.session_state["username"] = username
 
-            st.toast(f"Connected successfully! Authenticated to {env} as {username}", icon="✅")
+            # Look up the connected user's REAL Salesforce permissions.
+            # This — not any button in this app — is what decides whether
+            # schema-changing pages (Object Manager) are available.
+            perm_profile = load_permission_profile(sf, username)
+            st.session_state["profile_name"] = perm_profile["profile_name"]
+            st.session_state["can_modify_schema"] = perm_profile["can_modify_schema"]
+            init_access_mode()
+
+            st.toast(
+                f"Connected successfully! Authenticated to {env} as {username} "
+                f"(Profile: {perm_profile['profile_name']})",
+                icon="✅",
+            )
             time.sleep(1.5)
             st.rerun()
 
@@ -209,5 +229,6 @@ if st.session_state.get("config_ok") and "sf" in st.session_state:
         """,
         unsafe_allow_html=True
     )
+    render_access_mode_toggle()
 elif not action:
     st.caption("Fill in your credentials above and click 'Test Connection' to authenticate.")
