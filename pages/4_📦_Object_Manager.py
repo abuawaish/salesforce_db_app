@@ -3,7 +3,7 @@ import re
 from typing import Any, Dict, List
 import pandas as pd
 import streamlit as st
-
+from permissions import require_admin_mode
 
 st.set_page_config(
     page_title="Object Manager",
@@ -18,6 +18,13 @@ st.set_page_config(
 if "sf" not in st.session_state or not st.session_state.get("config_ok"):
     st.warning("Please configure your Salesforce connection first (⚙️ Configuration page).")
     st.stop()
+
+# ------------------------------------------------------------
+# Permission check — this page performs schema changes, so it's
+# gated on the connected user's REAL Salesforce permissions plus
+# an explicit Admin-mode opt-in (see permissions.py).
+# ------------------------------------------------------------
+require_admin_mode("Object Manager")
 
 sf = st.session_state["sf"]
 
@@ -512,10 +519,10 @@ with tabs[0]:
 
     control_col1, control_col2, control_col3 = st.columns([1, 1, 4])
     with control_col1:
-        st.button("Add Field Row", on_click=add_create_field_row, width="stretch")
+        st.button("Add Row", on_click=add_create_field_row, width="stretch")
     with control_col2:
         st.button(
-            "Remove Last Row",
+            "Remove Row",
             on_click=remove_last_create_field_row,
             disabled=len(st.session_state.create_field_row_ids) <= 1,
             width="stretch",
