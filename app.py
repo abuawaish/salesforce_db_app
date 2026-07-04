@@ -18,19 +18,36 @@ st.markdown("""
 ========================================================== */
 :root {
     --accent: #FFA500;
+    --accent-soft: rgba(255,165,0,.14);
+    --sf-blue: #00A1E0;
+    --success: #2ED9A3;
+    --success-soft: rgba(46,217,163,.12);
+    --danger: #FF6B6B;
+    --danger-soft: rgba(255,107,107,.12);
     --bg-black: #000000;
     --bg-dark: #080808;
     --bg-card: #0d0d0d;
     --text-white: #FFFFFF;
-    --text-muted: #AAAAAA;
-    --border: #333333;
+    --text-muted: #A6A6A6;
+    --border: #2a2a2a;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 /* ==========================================================
-   MAIN APP BACKGROUND
+   MAIN APP BACKGROUND & TYPOGRAPHY
 ========================================================== */
 .stApp {
     background-color: var(--bg-black);
+    font-family: var(--font-body);
+    zoom: 0.9;
+}
+.stApp p, .stApp li {
+    font-family: var(--font-body);
+    line-height: 1.7;
+}
+.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {
+    font-family: var(--font-body);
 }
 
 /* ==========================================================
@@ -42,25 +59,17 @@ section[data-testid="stSidebar"] {
     border-right: 1px solid #1a1a1a !important;
 }
 
-/* ==========================================================
-   SIDEBAR TEXT → Make all text white by default
-========================================================== */
-
 [data-testid="stSidebar"] * {
     color: #FFFFFF !important;
 }
 
-/* But keep the title orange – override the above */
 .sidebar-app-title {
     color: var(--accent) !important;
 }
 .sidebar-app-title span {
-    color: #FFFFFF !important;   /* version badge white */
+    color: #FFFFFF !important;
+    font-family: var(--font-mono);
 }
-
-/* ==========================================================
-   NAVIGATION LINKS (already white, but reinforce)
-========================================================== */
 
 [data-testid="stSidebarNav"] a {
     color: #FFFFFF !important;
@@ -84,6 +93,12 @@ section[data-testid="stSidebar"] {
     box-shadow: inset 0 0 8px rgba(255,165,0,0.15);
     color: var(--accent) !important;
     font-weight: 600 !important;
+}
+
+[data-testid="stSidebarNav"] a:focus-visible,
+a:focus-visible {
+    outline: 2px solid var(--accent) !important;
+    outline-offset: 2px;
 }
 
 /* ==========================================================
@@ -121,34 +136,222 @@ section[data-testid="stSidebar"] {
 }
 
 /* ==========================================================
-   HERO SECTION (unchanged)
+   HERO SECTION
 ========================================================== */
 
 .hero-container {
     background-color: var(--bg-black);
-    padding: 2rem;
+    padding: 2.2rem 2.4rem;
     border-radius: 16px;
     border-left: 6px solid var(--accent);
-    margin-bottom: 2rem;
     box-shadow: 0 4px 12px rgba(255,165,0,.12);
+    height: 100%;
+}
+.hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: .78rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--success);
+    margin-bottom: 14px;
+}
+.hero-eyebrow .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulseDot 1.8s infinite;
 }
 .hero-title {
+    font-family: var(--font-body);
     color: var(--accent);
-    font-size: 2.8rem;
-    font-weight: 700;
-    margin-bottom: 6px;
+    font-size: 2.6rem;
+    font-weight: 800;
+    letter-spacing: -.01em;
+    line-height: 1.2;
+    margin-bottom: 10px;
 }
 .hero-sub {
+    font-family: var(--font-body);
     color: var(--text-white);
-    font-size: 1.2rem;
+    font-size: 1.12rem;
+    line-height: 1.65;
+    max-width: 46ch;
+    margin-bottom: 14px;
 }
 .hero-caption {
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
 }
 
 /* ==========================================================
-   FEATURE CARDS (unchanged)
+   LIVE QUERY CONSOLE — hero signature element
+   Pure CSS, no JS: a looping demo of query -> results -> edit,
+   styled like a code editor since that's the real vernacular
+   of the thing this app actually does.
+========================================================== */
+
+.console-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    height: 100%;
+    box-shadow: 0 0 0 1px rgba(255,165,0,.05);
+    animation: consoleGlow 4s ease-in-out infinite;
+}
+@keyframes consoleGlow {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255,165,0,.05), 0 0 18px -6px rgba(255,165,0,.15); }
+    50%      { box-shadow: 0 0 0 1px rgba(0,161,224,.08), 0 0 22px -4px rgba(0,161,224,.22); }
+}
+.console-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #111111;
+    border-bottom: 1px solid var(--border);
+}
+.console-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+}
+.dot-red { background: #FF5F56; }
+.dot-yellow { background: #FFBD2E; }
+.dot-green { background: #27C93F; }
+.console-title {
+    margin-left: 6px;
+    font-family: var(--font-mono);
+    font-size: .78rem;
+    color: var(--text-muted);
+}
+.console-body {
+    padding: 18px 18px 20px;
+    min-height: 230px;
+    overflow-x: hidden;
+}
+.console-line {
+    font-family: var(--font-mono);
+    font-size: .92rem;
+    color: var(--text-white);
+    white-space: nowrap;
+}
+.console-prompt {
+    color: var(--sf-blue);
+    margin-right: 8px;
+}
+.console-typed {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    width: 0;
+    border-right: 2px solid var(--accent);
+    vertical-align: bottom;
+    animation: typeQuery 14s infinite steps(46), blinkCursor .8s step-end infinite;
+}
+@keyframes typeQuery {
+    0%       { width: 0; }
+    26%      { width: 46ch; }
+    90%      { width: 46ch; }
+    96%,100% { width: 0; }
+}
+@keyframes blinkCursor { 50% { border-color: transparent; } }
+
+.console-meta {
+    font-family: var(--font-mono);
+    font-size: .78rem;
+    color: var(--success);
+    margin: 10px 0 12px;
+    opacity: 0;
+    animation: metaFade 14s infinite;
+}
+@keyframes metaFade {
+    0%, 30% { opacity: 0; transform: translateY(4px); }
+    35%     { opacity: 1; transform: translateY(0); }
+    88%     { opacity: 1; }
+    94%,100%{ opacity: 0; }
+}
+
+.console-table { font-family: var(--font-mono); font-size: .82rem; }
+.console-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 6px 4px;
+    border-bottom: 1px solid #1c1c1c;
+    color: var(--text-white);
+    opacity: 0;
+    transform: translateX(-8px);
+}
+.console-row-head {
+    color: var(--text-muted);
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    opacity: 1 !important;
+    transform: none !important;
+    border-bottom: 1px solid var(--border);
+}
+.r1 { animation: rowIn1 14s infinite; }
+.r2 { animation: rowIn2 14s infinite; }
+.r3 { animation: rowIn3 14s infinite; }
+@keyframes rowIn1 {
+    0%,38%   { opacity: 0; transform: translateX(-8px); }
+    42%      { opacity: 1; transform: translateX(0); }
+    88%      { opacity: 1; }
+    94%,100% { opacity: 0; }
+}
+@keyframes rowIn2 {
+    0%,46%   { opacity: 0; transform: translateX(-8px); }
+    50%      { opacity: 1; transform: translateX(0); }
+    88%      { opacity: 1; }
+    94%,100% { opacity: 0; }
+}
+@keyframes rowIn3 {
+    0%,54%   { opacity: 0; transform: translateX(-8px); }
+    58%      { opacity: 1; transform: translateX(0); }
+    88%      { opacity: 1; }
+    94%,100% { opacity: 0; }
+}
+.editing {
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 5px 6px !important;
+    animation: rowIn3 14s infinite, editPulse 1.6s ease-in-out infinite;
+}
+@keyframes editPulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(255,165,0,.35); }
+    50%     { box-shadow: 0 0 0 4px rgba(255,165,0,0); }
+}
+.edit-pencil { color: var(--accent); margin-left: 6px; }
+
+/* Shrink console type scale on narrower panels — since the typing
+   width is set in `ch` units, a smaller font-size here shrinks the
+   pixel width needed too, so the full query line still fits. */
+@media (max-width: 900px) {
+    .console-line, .console-typed, .console-table { font-size: .66rem; }
+}
+
+.console-save {
+    font-family: var(--font-mono);
+    font-size: .8rem;
+    color: var(--success);
+    margin-top: 12px;
+    opacity: 0;
+    animation: saveIn 14s infinite;
+}
+@keyframes saveIn {
+    0%,64%   { opacity: 0; transform: translateY(4px); }
+    68%      { opacity: 1; transform: translateY(0); }
+    88%      { opacity: 1; }
+    94%,100% { opacity: 0; }
+}
+
+/* ==========================================================
+   FEATURE CARDS
 ========================================================== */
 
 .main-card {
@@ -158,12 +361,17 @@ section[data-testid="stSidebar"] {
     border: 1px solid var(--border);
     box-shadow: 0 4px 12px rgba(255,165,0,.12);
     height: 100%;
-    transition: all .25s ease;
+    transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    opacity: 0;
+    animation: fadeInUp .6s ease-out forwards;
 }
 .main-card:hover {
     transform: translateY(-4px);
     border-color: var(--accent);
     box-shadow: 0 10px 24px rgba(255,165,0,.25);
+}
+.main-card:hover .feature-icon {
+    transform: scale(1.12) rotate(-4deg);
 }
 .main-card h4 {
     color: var(--accent);
@@ -171,16 +379,22 @@ section[data-testid="stSidebar"] {
 }
 .main-card p {
     color: var(--text-white);
-    line-height: 1.6;
+    line-height: 1.65;
 }
 .feature-icon {
     font-size: 2.8rem;
     display: block;
     margin-bottom: 12px;
+    transition: transform .3s ease;
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ==========================================================
-   STEP CARDS (unchanged)
+   STEP CARDS
 ========================================================== */
 
 .step-container {
@@ -189,36 +403,69 @@ section[data-testid="stSidebar"] {
     border-radius: 16px;
     border-left: 6px solid var(--accent);
     box-shadow: 0 2px 8px rgba(255,165,0,.08);
-    transition: all .25s ease;
+    transition: box-shadow .25s ease, transform .25s ease;
+    opacity: 0;
+    animation: fadeInUp .6s ease-out forwards;
 }
 .step-container:hover {
     box-shadow: 0 8px 20px rgba(255,165,0,.15);
+    transform: translateY(-2px);
 }
 .step-container h4 {
     color: var(--accent);
 }
 .step-container p {
     color: var(--text-white);
-    line-height: 1.6;
+    line-height: 1.65;
+}
+.step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: .75rem;
+    font-weight: 700;
+    margin-right: 8px;
 }
 
 /* ==========================================================
-   STATUS BADGES
+   STATUS BADGES — dark-mode native (fixes low-contrast pastels)
 ========================================================== */
-
 .status-badge {
-    padding: 5px 14px;
-    border-radius: 20px;
+    padding: 6px 16px;
+    border-radius: 999px;
     font-weight: 600;
-    display: inline-block;
+    font-size: .85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+}
+.status-badge .dot {
+    width: 8px; height: 8px; border-radius: 50%;
 }
 .badge-connected {
-    background: #d4edda;
-    color: #155724;
+    background: var(--success-soft);
+    color: var(--success);
+    border: 1px solid rgba(46,217,163,.35);
+}
+.badge-connected .dot {
+    background: var(--success);
+    animation: pulseDot 1.8s infinite;
 }
 .badge-disconnected {
-    background: #f8d7da;
-    color: #721c24;
+    background: var(--danger-soft);
+    color: var(--danger);
+    border: 1px solid rgba(255,107,107,.35);
+}
+@keyframes pulseDot {
+    0%   { box-shadow: 0 0 0 0 rgba(46,217,163,.5); }
+    70%  { box-shadow: 0 0 0 7px rgba(46,217,163,0); }
+    100% { box-shadow: 0 0 0 0 rgba(46,217,163,0); }
 }
 
 /* ==========================================================
@@ -265,6 +512,16 @@ section[data-testid="stSidebar"] {
     );
 }
 
+/* ==========================================================
+   ACCESSIBILITY: respect reduced-motion
+========================================================== */
+@media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+    .console-typed { width: 46ch !important; border-right: none !important; }
+    .console-meta, .console-row, .console-save { opacity: 1 !important; transform: none !important; }
+    .main-card, .step-container { opacity: 1 !important; }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -274,21 +531,56 @@ section[data-testid="stSidebar"] {
 with st.sidebar:
     st.markdown("""
     <div class="sidebar-app-title">
-        ⚡ Salesforce <span>v1.0</span>
+        ⚡ Salesforce <span>v2.0</span>
     </div>
     <hr class="sidebar-header-line">
     """, unsafe_allow_html=True)
 
 # ============================================================
-# HERO SECTION
+# HERO SECTION — title/pitch on the left, a live animated
+# SOQL console on the right that shows the app's whole loop
+# (query → results → inline edit → save) without needing a
+# real connection.
 # ============================================================
-st.markdown("""
-<div class="hero-container">
-    <div class="hero-title">☁️ Salesforce Data Query & Editor</div>
-    <div class="hero-sub">Run powerful SOQL queries and edit your data inline — all from your browser.</div>
-    <div class="hero-caption">Built with Streamlit · simple-salesforce · Standard REST API</div>
-</div>
-""", unsafe_allow_html=True)
+hero_left, hero_right = st.columns([1.15, 1], gap="medium")
+
+with hero_left:
+    st.markdown("""
+    <div class="hero-container">
+        <div class="hero-eyebrow"><span class="live-dot"></span> Streamlit · simple-salesforce · REST API</div>
+        <div class="hero-title">☁️ Salesforce Data Query &amp; Editor</div>
+        <div class="hero-sub">
+            Query, browse, and edit your Salesforce data straight from your browser —
+            no dev console, no separate SOQL tool, no context switching.
+        </div>
+        <div class="hero-caption">Built for admins and developers who live in their org every day.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with hero_right:
+    st.markdown("""
+    <div class="console-panel">
+        <div class="console-header">
+            <span class="console-dot dot-red"></span>
+            <span class="console-dot dot-yellow"></span>
+            <span class="console-dot dot-green"></span>
+            <span class="console-title">SOQL Editor — live preview</span>
+        </div>
+        <div class="console-body">
+            <div class="console-line">
+                <span class="console-prompt">&gt;</span><span class="console-typed">SELECT Id, Name, Industry FROM Account LIMIT 5</span>
+            </div>
+            <div class="console-meta">🟢 Query executed in 189ms · 3 of 5 rows shown</div>
+            <div class="console-table">
+                <div class="console-row console-row-head"><span>Name</span><span>Industry</span></div>
+                <div class="console-row r1"><span>Acme Corporation</span><span>Manufacturing</span></div>
+                <div class="console-row r2"><span>Global Logistics Inc.</span><span>Transportation</span></div>
+                <div class="console-row r3 editing"><span>Pinnacle Health Group<span class="edit-pencil">✎</span></span><span>Healthcare</span></div>
+            </div>
+            <div class="console-save">✅ Record updated in Salesforce</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
 
@@ -299,11 +591,11 @@ col1, col2, col3 = st.columns(3, gap="medium")
 
 with col1:
     st.markdown("""
-    <div class="main-card">
+    <div class="main-card" style="animation-delay:.05s;">
         <span class="feature-icon">🔍</span>
         <h4>Run SOQL Queries</h4>
         <p>
-            Write any <strong>SELECT</strong> query against Salesforce objects. 
+            Write any <strong>SELECT</strong> query against Salesforce objects.
             Results are displayed instantly in a beautiful, sortable table.
         </p>
     </div>
@@ -311,11 +603,11 @@ with col1:
 
 with col2:
     st.markdown("""
-    <div class="main-card">
+    <div class="main-card" style="animation-delay:.18s;">
         <span class="feature-icon">📋</span>
         <h4>Interactive Results</h4>
         <p>
-            View your data with <strong>scrollable tables</strong>, column sorting, 
+            View your data with <strong>scrollable tables</strong>, column sorting,
             and one-click CSV export for easy analysis.
         </p>
     </div>
@@ -323,11 +615,11 @@ with col2:
 
 with col3:
     st.markdown("""
-    <div class="main-card">
+    <div class="main-card" style="animation-delay:.31s;">
         <span class="feature-icon">✏️</span>
         <h4>Inline DML</h4>
         <p>
-            Edit records directly in the table. Perform <strong>Insert, Update, 
+            Edit records directly in the table. Perform <strong>Insert, Update,
             and Delete</strong> operations with a simple checkbox and save button.
         </p>
     </div>
@@ -364,24 +656,23 @@ left_step, right_step = st.columns(2, gap="medium")
 
 with left_step:
     st.markdown("""
-    <div class="step-container" style="border-left-color: #FFA500;">
-        <h4>⚙️ Step 1: Configuration</h4>
+    <div class="step-container" style="border-left-color: #FFA500; animation-delay:.05s;">
+        <h4><span class="step-number">1</span>Configuration</h4>
         <p>
-            Use the sidebar to navigate to the <strong>Configuration</strong> page. 
-            Enter your Salesforce credentials 
-            (<em>Username, Password</em>) 
-            and click <strong>"Test Connection"</strong>.
+            Open the <strong>Configuration</strong> page from the sidebar.
+            Enter your Salesforce username, password, and security token,
+            then click <strong>"Test Connection"</strong>.
         </p>
     </div>
     """, unsafe_allow_html=True)
 
 with right_step:
     st.markdown("""
-    <div class="step-container" style="border-left-color: #FF8C00;">
-        <h4>📊 Step 2: Query & Edit</h4>
+    <div class="step-container" style="border-left-color: #FF8C00; animation-delay:.18s;">
+        <h4><span class="step-number">2</span>Query &amp; Edit</h4>
         <p>
-            Once connected, switch to the <strong>Salesforce SOQL Editor</strong> page. 
-            Run your SOQL queries, view results, and edit or delete records 
+            Once connected, open the <strong>Salesforce SOQL Editor</strong> page.
+            Run queries, review results, and edit or delete records
             directly in the interactive data editor.
         </p>
     </div>
@@ -395,11 +686,11 @@ st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
 is_connected = "sf" in st.session_state and st.session_state.get("config_ok")
 
 if is_connected:
-    badge_html = '<span class="status-badge badge-connected">🟢 Connected</span>'
-    message_text = 'Your session is active. You can now use the <strong>Salesforce SOQL Editor</strong> to manage your Salesforce data.'
+    badge_html = '<span class="status-badge badge-connected"><span class="dot"></span>Connected</span>'
+    message_text = 'Your session is active. Head to the <strong>Salesforce SOQL Editor</strong> to query and manage your data.'
 else:
-    badge_html = '<span class="status-badge badge-disconnected">🔴 Not Connected</span>'
-    message_text = 'Please configure your Salesforce connection using the sidebar to unlock all features.'
+    badge_html = '<span class="status-badge badge-disconnected"><span class="dot" style="background: var(--danger);"></span>Not Connected</span>'
+    message_text = 'Configure your Salesforce connection from the sidebar to unlock every page.'
 
 st.markdown(f"""
 <div style="display: flex; align-items: center; gap: 12px;">
