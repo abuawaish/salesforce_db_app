@@ -189,10 +189,7 @@ a:focus-visible {
 }
 
 /* ==========================================================
-   LIVE QUERY CONSOLE — hero signature element
-   Pure CSS, no JS: a looping demo of query -> results -> edit,
-   styled like a code editor since that's the real vernacular
-   of the thing this app actually does.
+   LIVE QUERY CONSOLE
 ========================================================== */
 
 .console-panel {
@@ -328,9 +325,6 @@ a:focus-visible {
 }
 .edit-pencil { color: var(--accent); margin-left: 6px; }
 
-/* Shrink console type scale on narrower panels — since the typing
-   width is set in `ch` units, a smaller font-size here shrinks the
-   pixel width needed too, so the full query line still fits. */
 @media (max-width: 900px) {
     .console-line, .console-typed, .console-table { font-size: .66rem; }
 }
@@ -433,7 +427,7 @@ a:focus-visible {
 }
 
 /* ==========================================================
-   STATUS BADGES — dark-mode native (fixes low-contrast pastels)
+   STATUS BADGES — dark-mode native
 ========================================================== */
 .status-badge {
     padding: 6px 16px;
@@ -482,6 +476,21 @@ a:focus-visible {
    STATUS MESSAGE
 ========================================================== */
 
+.status-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+.status-label {
+    font-family: var(--font-mono);
+    font-size: .86rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: blue !important;
+}
 .status-container {
     background-color: var(--bg-card);
     border-left: 4px solid var(--accent);
@@ -513,6 +522,26 @@ a:focus-visible {
 }
 
 /* ==========================================================
+   DIVIDER VISIBILITY
+========================================================== */
+.stMarkdown hr.custom-divider,
+div[data-testid="stMarkdown"] hr.custom-divider {
+    margin: 2rem 0 !important;
+    border: none !important;
+    height: 2px !important;
+    background: linear-gradient(
+        to right,
+        #555555,
+        #888888,
+        #555555
+    ) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+    width: 100% !important;
+}
+
+/* ==========================================================
    ACCESSIBILITY: respect reduced-motion
 ========================================================== */
 @media (prefers-reduced-motion: reduce) {
@@ -523,6 +552,26 @@ a:focus-visible {
 }
 
 </style>
+""", unsafe_allow_html=True)
+
+#------------------------------------------------------------
+# HEADER / CONNECTION STATUS BADGE
+#-----------------------------------------------------------
+
+is_connected = "sf" in st.session_state and st.session_state.get("config_ok")
+
+if is_connected:
+    badge_html = '<span class="status-badge badge-connected"><span class="dot"></span>Connected</span>'
+    message_text = 'Your session is active. Head to the <strong>Salesforce SOQL Editor</strong> to query and manage your data.'
+else:
+    badge_html = '<span class="status-badge badge-disconnected"><span class="dot" style="background: var(--danger);"></span>Not Connected</span>'
+    message_text = 'Configure your Salesforce connection from the sidebar to unlock every page.'
+
+st.markdown(f"""
+<div class="status-header">
+    <span class="status-label">ORG STATUS</span>
+    {badge_html}
+</div>
 """, unsafe_allow_html=True)
 
 # ============================================================
@@ -681,22 +730,11 @@ with right_step:
 st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
 
 # ============================================================
-# FOOTER / CONNECTION STATUS
+# FOOTER / CONNECTION STATUS MESSAGE
 # ============================================================
-is_connected = "sf" in st.session_state and st.session_state.get("config_ok")
-
-if is_connected:
-    badge_html = '<span class="status-badge badge-connected"><span class="dot"></span>Connected</span>'
-    message_text = 'Your session is active. Head to the <strong>Salesforce SOQL Editor</strong> to query and manage your data.'
-else:
-    badge_html = '<span class="status-badge badge-disconnected"><span class="dot" style="background: var(--danger);"></span>Not Connected</span>'
-    message_text = 'Configure your Salesforce connection from the sidebar to unlock every page.'
 
 st.markdown(f"""
-<div style="display: flex; align-items: center; gap: 12px;">
-    {badge_html}
     <div class="status-container" style="flex: 1; margin: 0;">
         <p class="status-message">{message_text}</p>
     </div>
-</div>
 """, unsafe_allow_html=True)
