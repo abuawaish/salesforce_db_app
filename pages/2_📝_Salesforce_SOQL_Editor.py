@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import json
 import re
-import time
 
 # ------------------------------------------------------------
 # Page Configuration
@@ -41,7 +40,6 @@ if "fa_all_objects" not in st.session_state:
 # Constant for delete checkbox column name
 # ------------------------------------------------------------
 DELETE_COL = "🗑️ Delete?"
-TRANSIENT_MESSAGE_SECONDS = 5
 WRITE_EXCLUDED_COLUMNS = {"attributes", DELETE_COL}
 
 # ------------------------------------------------------------
@@ -373,18 +371,19 @@ def get_salesforce_writeable_fields(field_metadata):
     return createable_fields, updateable_fields
 
 
-def show_temporary_message(message, level="warning", seconds=TRANSIENT_MESSAGE_SECONDS):
-    placeholder = st.empty()
+def show_temporary_message(message, level="warning"):
+    """
+    Show a temporary toast message that auto-dismisses.
+    Uses st.toast() for non-blocking, ephemeral notifications.
+    """
     if level == "error":
-        placeholder.error(message)
+        st.toast(message, icon="❌")
     elif level == "success":
-        placeholder.success(message)
+        st.toast(message, icon="✅")
     elif level == "info":
-        placeholder.info(message)
+        st.toast(message, icon="ℹ️")
     else:
-        placeholder.warning(message)
-    time.sleep(seconds)
-    placeholder.empty()
+        st.toast(message, icon="⚠️")
 
 
 def build_insert_payload(row_dict, createable_fields):
