@@ -4,9 +4,8 @@ A Streamlit-based Salesforce utility for running SOQL queries, inspecting object
 
 <!-- Badges -->
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![Streamlit - Live Demo](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://salesforce-db-app.streamlit.app/)
+[![Streamlit - Live Demo](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://sf-query-studio.streamlit.app/)
 
-[Live Demo → https://salesforce-db-app.streamlit.app/](https://salesforce-db-app.streamlit.app/)
 ## Overview
 
 This app provides a clean, dark-themed interface for:
@@ -90,6 +89,7 @@ Found under the `Session Information` page:
 ## Repository Structure
 
 - `app.py` - Main Streamlit homepage, custom styling, and feature overview.
+- `permissions.py` - Salesforce permission helpers that load the connected user's profile permissions, enforce read-only defaults, and gate admin-only pages.
 - `pages/1_⚙️_Configuration.py` - Salesforce connection setup.
 - `pages/2_📝_Salesforce_SOQL_Editor.py` - SOQL query runner and inline record editor.
 - `pages/3_📊_Field_Analysis.py` - Salesforce object metadata and field analysis.
@@ -170,7 +170,7 @@ Then open the URL shown in your browser (usually `http://localhost:8501`).
 
 You can try the hosted version of this app here:
 
-- https://salesforce-db-app.streamlit.app/ (opens the deployed Streamlit app)
+- https://sf-query-studio.streamlit.app/ (opens the deployed Streamlit app)
 
 Note: The deployed demo may not include a working Salesforce connection for security reasons — use your own credentials via the `Configuration` page when running locally or in a trusted environment.
 
