@@ -28,7 +28,11 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-
+            
+html {
+    font-size: 90%;
+}
+            
 /* ==========================================================
    GLOBAL VARIABLES
 ========================================================== */
@@ -57,9 +61,9 @@ st.markdown("""
 /* ==========================================================
    MAIN APP BACKGROUND & TYPOGRAPHY
 ========================================================== */
+
 .stApp {
     font-family: var(--font-body);
-    zoom: 0.9;
 }
 .stApp p, .stApp li {
     font-family: var(--font-body);
