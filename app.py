@@ -7,7 +7,23 @@ st.set_page_config(
     page_title="Salesforce Data Query",
     page_icon="☁️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://github.com/abuawaish/salesforce_db_app#readme',
+        'Report a bug': 'https://github.com/abuawaish/salesforce_db_app/issues/new',
+        'About': """
+        ## ☁️ Salesforce Data Query & Editor
+
+        Query, browse, and edit your Salesforce data — no dev console, no separate SOQL tool.
+
+        Built with Streamlit and `simple-salesforce`.
+
+        **Version:** 2.0 \n
+        **Author:** [Abu Awaish](https://github.com/abuawaish) \n
+        **Source:** [github.com/abuawaish/salesforce_db_app](https://github.com/abuawaish/salesforce_db_app) \n
+        **License:** MIT
+        """
+    }
 )
 
 st.markdown("""
@@ -16,29 +32,32 @@ st.markdown("""
 /* ==========================================================
    GLOBAL VARIABLES
 ========================================================== */
+
+/* Accent & semantic colors (theme-agnostic) */
 :root {
     --accent: #FFA500;
     --accent-soft: rgba(255,165,0,.14);
+    --accent-soft-solid: rgba(255,165,0,.15);
     --sf-blue: #00A1E0;
     --success: #2ED9A3;
     --success-soft: rgba(46,217,163,.12);
     --danger: #FF6B6B;
     --danger-soft: rgba(255,107,107,.12);
-    --bg-black: #000000;
-    --bg-dark: #080808;
-    --bg-card: #0d0d0d;
-    --text-white: #FFFFFF;
-    --text-muted: #A6A6A6;
-    --border: #2a2a2a;
     --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+    /* Streamlit native tokens (auto-switch with theme) */
+    --st-bg: var(--background-color, #0E1117);
+    --st-fg: var(--text-color, #FAFAFA);
+    --st-secondary-bg: var(--secondary-background-color, #262730);
+    --st-border: rgba(250,250,250,0.2);
+    --st-muted: #A6A6A6;
 }
 
 /* ==========================================================
    MAIN APP BACKGROUND & TYPOGRAPHY
 ========================================================== */
 .stApp {
-    background-color: var(--bg-black);
     font-family: var(--font-body);
     zoom: 0.9;
 }
@@ -55,24 +74,10 @@ st.markdown("""
 ========================================================== */
 
 section[data-testid="stSidebar"] {
-    background-color: var(--bg-dark) !important;
-    border-right: 1px solid #1a1a1a !important;
-}
-
-[data-testid="stSidebar"] * {
-    color: #FFFFFF !important;
-}
-
-.sidebar-app-title {
-    color: var(--accent) !important;
-}
-.sidebar-app-title span {
-    color: #FFFFFF !important;
-    font-family: var(--font-mono);
+    border-right: 1px solid var(--st-border) !important;
 }
 
 [data-testid="stSidebarNav"] a {
-    color: #FFFFFF !important;
     border-radius: 12px !important;
     padding: 0.75rem 1rem !important;
     text-decoration: none !important;
@@ -82,13 +87,14 @@ section[data-testid="stSidebar"] {
 }
 
 [data-testid="stSidebarNav"] a:hover {
-    background: #161616 !important;
+    background: color-mix(in srgb, var(--st-secondary-bg) 20%, rgba(255,255,255,0.16)) !important;
+    color: var(--st-fg) !important;
     border-left-color: var(--accent) !important;
     transform: translateX(4px);
 }
 
 [data-testid="stSidebarNav"] a[aria-current="page"] {
-    background: rgba(255,165,0,0.12) !important;
+    background: var(--accent-soft) !important;
     border-left: 4px solid var(--accent) !important;
     box-shadow: inset 0 0 8px rgba(255,165,0,0.15);
     color: var(--accent) !important;
@@ -116,11 +122,11 @@ a:focus-visible {
 }
 
 .sidebar-app-title span {
-    background: rgba(255,165,0,.15);
+    background: var(--accent-soft-solid);
     padding: 3px 10px;
     border-radius: 999px;
     font-size: .75rem;
-    color: #FFFFFF !important;
+    font-family: var(--font-mono);
 }
 
 .sidebar-header-line {
@@ -140,7 +146,7 @@ a:focus-visible {
 ========================================================== */
 
 .hero-container {
-    background-color: var(--bg-black);
+    background-color: var(--st-secondary-bg);
     padding: 2.2rem 2.4rem;
     border-radius: 16px;
     border-left: 6px solid var(--accent);
@@ -176,14 +182,14 @@ a:focus-visible {
 }
 .hero-sub {
     font-family: var(--font-body);
-    color: var(--text-white);
+    color: var(--st-fg);
     font-size: 1.12rem;
     line-height: 1.65;
     max-width: 46ch;
     margin-bottom: 14px;
 }
 .hero-caption {
-    color: var(--text-muted);
+    color: var(--st-muted);
     font-size: 0.85rem;
     font-family: var(--font-mono);
 }
@@ -193,8 +199,8 @@ a:focus-visible {
 ========================================================== */
 
 .console-panel {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+    background: var(--st-secondary-bg);
+    border: 1px solid var(--st-border);
     border-radius: 14px;
     overflow: hidden;
     height: 100%;
@@ -210,8 +216,8 @@ a:focus-visible {
     align-items: center;
     gap: 8px;
     padding: 10px 14px;
-    background: #111111;
-    border-bottom: 1px solid var(--border);
+    background: var(--st-bg);
+    border-bottom: 1px solid var(--st-border);
 }
 .console-dot {
     width: 10px; height: 10px; border-radius: 50%;
@@ -223,7 +229,7 @@ a:focus-visible {
     margin-left: 6px;
     font-family: var(--font-mono);
     font-size: .78rem;
-    color: var(--text-muted);
+    color: var(--st-muted);
 }
 .console-body {
     padding: 18px 18px 20px;
@@ -233,7 +239,7 @@ a:focus-visible {
 .console-line {
     font-family: var(--font-mono);
     font-size: .92rem;
-    color: var(--text-white);
+    color: var(--st-fg);
     white-space: nowrap;
 }
 .console-prompt {
@@ -278,19 +284,19 @@ a:focus-visible {
     justify-content: space-between;
     gap: 14px;
     padding: 6px 4px;
-    border-bottom: 1px solid #1c1c1c;
-    color: var(--text-white);
+    border-bottom: 1px solid var(--st-border);
+    color: var(--st-fg);
     opacity: 0;
     transform: translateX(-8px);
 }
 .console-row-head {
-    color: var(--text-muted);
+    color: var(--st-muted);
     font-size: .72rem;
     text-transform: uppercase;
     letter-spacing: .04em;
     opacity: 1 !important;
     transform: none !important;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--st-border);
 }
 .r1 { animation: rowIn1 14s infinite; }
 .r2 { animation: rowIn2 14s infinite; }
@@ -349,10 +355,10 @@ a:focus-visible {
 ========================================================== */
 
 .main-card {
-    background-color: var(--bg-black);
+    background-color: var(--st-secondary-bg);
     padding: 24px;
     border-radius: 16px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--st-border);
     box-shadow: 0 4px 12px rgba(255,165,0,.12);
     height: 100%;
     transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
@@ -372,7 +378,7 @@ a:focus-visible {
     margin-top: 0;
 }
 .main-card p {
-    color: var(--text-white);
+    color: var(--st-fg);
     line-height: 1.65;
 }
 .feature-icon {
@@ -392,7 +398,7 @@ a:focus-visible {
 ========================================================== */
 
 .step-container {
-    background-color: var(--bg-black);
+    background-color: var(--st-secondary-bg);
     padding: 24px;
     border-radius: 16px;
     border-left: 6px solid var(--accent);
@@ -409,7 +415,7 @@ a:focus-visible {
     color: var(--accent);
 }
 .step-container p {
-    color: var(--text-white);
+    color: var(--st-fg);
     line-height: 1.65;
 }
 .step-number {
@@ -427,7 +433,7 @@ a:focus-visible {
 }
 
 /* ==========================================================
-   STATUS BADGES — dark-mode native
+   STATUS BADGES
 ========================================================== */
 .status-badge {
     padding: 6px 16px;
@@ -463,16 +469,6 @@ a:focus-visible {
 }
 
 /* ==========================================================
-   LIGHT MODE OVERRIDES
-========================================================== */
-
-@media (prefers-color-scheme: light) {
-    .stMarkdown h2 {
-        color: #1a1a1a !important;
-    }
-}
-
-/* ==========================================================
    STATUS MESSAGE
 ========================================================== */
 
@@ -489,16 +485,16 @@ a:focus-visible {
     font-weight: 700;
     letter-spacing: .12em;
     text-transform: uppercase;
-    color: blue !important;
+    color: var(--sf-blue) !important;
 }
 .status-container {
-    background-color: var(--bg-card);
+    background-color: var(--st-secondary-bg);
     border-left: 4px solid var(--accent);
     padding: 10px 16px;
     border-radius: 10px;
 }
 .status-message {
-    color: var(--text-white);
+    color: var(--st-fg);
     margin: 0;
 }
 .status-message strong {
@@ -515,15 +511,12 @@ a:focus-visible {
     height: 1px;
     background: linear-gradient(
         to right,
-        #333333,
-        #555555,
-        #333333
+        var(--st-border),
+        rgba(128,128,128,0.5),
+        var(--st-border)
     );
 }
 
-/* ==========================================================
-   DIVIDER VISIBILITY
-========================================================== */
 .stMarkdown hr.custom-divider,
 div[data-testid="stMarkdown"] hr.custom-divider {
     margin: 2rem 0 !important;
@@ -531,9 +524,9 @@ div[data-testid="stMarkdown"] hr.custom-divider {
     height: 2px !important;
     background: linear-gradient(
         to right,
-        #555555,
-        #888888,
-        #555555
+        var(--st-border),
+        rgba(128,128,128,0.5),
+        var(--st-border)
     ) !important;
     opacity: 1 !important;
     visibility: visible !important;
@@ -575,7 +568,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ============================================================
-# SIDEBAR: Custom Header (Optional)
+# SIDEBAR: Custom Header
 # ============================================================
 with st.sidebar:
     st.markdown("""
@@ -586,10 +579,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # ============================================================
-# HERO SECTION — title/pitch on the left, a live animated
-# SOQL console on the right that shows the app's whole loop
-# (query → results → inline edit → save) without needing a
-# real connection.
+# HERO SECTION
 # ============================================================
 hero_left, hero_right = st.columns([1.15, 1], gap="medium")
 
