@@ -788,7 +788,7 @@ history_index = 0
 if st.session_state.soql_history_selector in history_options:
     history_index = history_options.index(st.session_state.soql_history_selector)
 
-history_col1, history_col2 = st.columns([5, 1])
+history_col1, history_col2 = st.columns([5, 1], vertical_alignment="bottom")
 
 with history_col1:
     selected_history_query = st.selectbox(
@@ -800,18 +800,17 @@ with history_col1:
         help="Select a previously executed SOQL query to reload it into the query box.",
     )
 
-    if not st.session_state.soql_history:
-        st.caption("No saved SOQL queries yet. Run a query to add it to history.")
-
 with history_col2:
-    st.write("\n")
-    st.write("\n")
     st.button(
         "Clear History",
         on_click=clear_query_history,
         help="Remove all saved SOQL query history.",
         disabled=not st.session_state.soql_history,
+        width="stretch",
     )
+
+if not st.session_state.soql_history:
+    st.caption("No saved SOQL queries yet. Run a query to add it to history.")
 
 
 if "query_df" in st.session_state and st.session_state["query_df"] is not None:
