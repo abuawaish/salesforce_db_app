@@ -7,7 +7,7 @@ st.set_page_config(
     page_title="Salesforce Data Query",
     page_icon="☁️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
     menu_items={
         'Get Help': 'https://github.com/abuawaish/salesforce_db_app#readme',
         'Report a bug': 'https://github.com/abuawaish/salesforce_db_app/issues/new',
