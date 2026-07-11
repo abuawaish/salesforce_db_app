@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="Object Manager",
     page_icon="📦",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 # ------------------------------------------------------------
@@ -17,6 +17,13 @@ st.set_page_config(
 # ------------------------------------------------------------
 if "sf" not in st.session_state or not st.session_state.get("config_ok"):
     st.warning("Please configure your Salesforce connection first (⚙️ Configuration page).")
+    st.info(
+        "💡 **What this page does:** once connected, browse every "
+        "Salesforce object, drill into its existing fields, and create new "
+        "custom fields directly from here. Since this page can change your "
+        "org's schema, it also requires your connected user to have real "
+        "admin permissions in Salesforce."
+    )
     st.stop()
 
 # ------------------------------------------------------------

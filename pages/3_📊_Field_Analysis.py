@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="Field Analysis", 
     page_icon="📊", 
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
 # ------------------------------------------------------------
@@ -19,6 +19,12 @@ st.set_page_config(
 # ------------------------------------------------------------
 if "sf" not in st.session_state or not st.session_state.get("config_ok"):
     st.warning("Please configure your Salesforce connection first (⚙️ Configuration page).")
+    st.info(
+        "💡 **What this page does:** once connected, inspect any Salesforce "
+        "object's field metadata — data types, required fields, picklist "
+        "values, and relationships — so you know exactly what's available "
+        "before you write a query or build an integration."
+    )
     st.stop()
 
 sf = st.session_state["sf"]

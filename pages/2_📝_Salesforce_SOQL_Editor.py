@@ -10,7 +10,7 @@ st.set_page_config(
     page_title="SOQL Editor & Record Management",
     page_icon="📝",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
 # ------------------------------------------------------------
@@ -18,6 +18,12 @@ st.set_page_config(
 # ------------------------------------------------------------
 if "sf" not in st.session_state or not st.session_state.get("config_ok"):
     st.warning("Please configure your Salesforce connection first (⚙️ Configuration page).")
+    st.info(
+        "💡 **What this page does:** once connected, write and run SOQL "
+        "`SELECT` queries against any Salesforce object, view the results "
+        "in a sortable table, edit records inline, and export what you find "
+        "to CSV — all without leaving your browser."
+    )
     st.stop()
 
 sf = st.session_state["sf"]

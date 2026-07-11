@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="Session Information",
     page_icon="👤",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 # ------------------------------------------------------------
@@ -19,6 +19,12 @@ st.set_page_config(
 # ------------------------------------------------------------
 if "sf" not in st.session_state or not st.session_state.get("config_ok"):
     st.warning("Please configure your Salesforce connection first (⚙️ Configuration page).")
+    st.info(
+        "💡 **What this page does:** once connected, view details about "
+        "your active Salesforce session — org info, logged-in user, API "
+        "usage/limits, and session health — handy for confirming you're "
+        "pointed at the right org before you run queries or edits."
+    )
     st.stop()
 
 sf = st.session_state["sf"]
