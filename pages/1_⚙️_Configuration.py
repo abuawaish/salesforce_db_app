@@ -130,6 +130,7 @@ if action:
         st.session_state.pop("profile_name", None)
         st.session_state.pop("can_modify_schema", None)
         st.session_state.pop("access_mode", None)
+        st.session_state.pop("fa_profiles", None)
         st.toast("Successfully disconnected from the Salesforce org.", icon="✅")
         time.sleep(1.5)
         st.rerun()
