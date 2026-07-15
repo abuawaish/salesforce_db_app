@@ -847,22 +847,6 @@ tabs = st.tabs(
 with tabs[0]:
     st.markdown('<div class="section-card"><h3>✨ Create Custom Object</h3>', unsafe_allow_html=True)
 
-    control_col1, control_col2, control_col3 = st.columns([1, 1, 4])
-    with control_col1:
-        st.button("Add Row", on_click=add_create_field_row, width="content")
-    with control_col2:
-        st.button(
-            "Remove Row",
-            on_click=remove_last_create_field_row,
-            disabled=len(st.session_state.create_field_row_ids) <= 1,
-            width="content",
-        )
-    with control_col3:
-        st.markdown(
-            f'<div class="small-note">Field rows: {len(st.session_state.create_field_row_ids)}</div>',
-            unsafe_allow_html=True,
-        )
-
     # Object details
     col1, col2 = st.columns(2)
     with col1:
@@ -892,8 +876,26 @@ with tabs[0]:
             key="create_description",
         )
 
+    st.divider()
+
     st.markdown("#### Fields")
     st.caption("Leave a row blank if you do not want to create that field.")
+
+    control_col1, control_col2, control_col3 = st.columns([1, 1, 4])
+    with control_col1:
+        st.button("Add Row", on_click=add_create_field_row, width="content")
+    with control_col2:
+        st.button(
+            "Remove Row",
+            on_click=remove_last_create_field_row,
+            disabled=len(st.session_state.create_field_row_ids) <= 1,
+            width="content",
+        )
+    with control_col3:
+        st.markdown(
+            f'<div class="small-note">Field rows: {len(st.session_state.create_field_row_ids)}</div>',
+            unsafe_allow_html=True,
+        )
 
     for index, row_id in enumerate(st.session_state.create_field_row_ids, start=1):
         st.markdown(f"**Field {index}**")
