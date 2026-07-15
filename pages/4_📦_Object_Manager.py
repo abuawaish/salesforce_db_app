@@ -1,9 +1,15 @@
 import json
 import re
-from typing import Any, Dict, List
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Tuple
 import pandas as pd
 import streamlit as st
 from permissions import require_admin_mode
+
+# ------------------------------------------------------------
+# Page Configuration
+# ------------------------------------------------------------
 
 st.set_page_config(
     page_title="Object Manager",
@@ -55,6 +61,8 @@ FIELD_TYPE_OPTIONS: Dict[str, Dict[str, Any]] = {
     "Text": {"metadata_type": "Text", "supports_length": True},
     "Long Text Area": {"metadata_type": "LongTextArea", "supports_length": True},
     "Number": {"metadata_type": "Number", "supports_precision": True, "supports_scale": True},
+    "Currency": {"metadata_type": "Currency", "supports_precision": True, "supports_scale": True},
+    "Percent": {"metadata_type": "Percent", "supports_precision": True, "supports_scale": True},
     "Date": {"metadata_type": "Date"},
     "Date/Time": {"metadata_type": "DateTime"},
     "Checkbox": {"metadata_type": "Checkbox"},
@@ -66,6 +74,18 @@ FIELD_TYPE_OPTIONS: Dict[str, Dict[str, Any]] = {
 }
 
 FIELD_TYPE_LABELS = list(FIELD_TYPE_OPTIONS.keys())
+
+# ------------------------------------------------------------
+# FLS / Object-permission grant limits
+# ------------------------------------------------------------
+# Each Profile selected for a grant costs one Profile.read() + one
+# Profile.update() Metadata API call, which counts against the org's
+# daily Metadata API limit. These caps keep a single submission from
+# silently burning through a large chunk of that limit. Profile reads
+# are also heavier than Permission Set reads (a Profile carries a lot
+# more metadata), so keep an eye on this if the cap is ever raised.
+MAX_PROFILES_PER_GRANT = 5             # hard cap enforced per picker widget
+WARN_TOTAL_METADATA_CALLS_AT = 15      # soft warning threshold, shown pre-submit
 CUSTOM_SUFFIX = "__c"
 API_NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
@@ -386,7 +406,7 @@ def build_custom_field_metadata(mdapi: Any, object_api_name: str, field_spec: Di
         kwargs["length"] = field_spec.get("length", 32768)
         kwargs["visibleLines"] = 3
 
-    elif metadata_type == "Number":
+    elif metadata_type in {"Number", "Currency", "Percent"}:
         kwargs["precision"] = field_spec.get("precision", 18)
         kwargs["scale"] = field_spec.get("scale", 2)
 
@@ -401,13 +421,307 @@ def build_custom_field_metadata(mdapi: Any, object_api_name: str, field_spec: Di
     return mdapi.CustomField(**kwargs)
 
 
+# ------------------------------------------------------------
+# Field-Level Security (FLS) helpers — Profile based
+# ------------------------------------------------------------
+def _resolve_profile_fullname(profile_id: str, fallback_label: str) -> str:
+    """
+    Resolve a Profile's Metadata API developer name (FullName) via the
+    Tooling API. Standard SOQL only exposes Profile.Name as the display
+    LABEL (e.g. "System Administrator") — the Metadata API's Profile.read()
+    needs the developer name instead (e.g. "Admin"), and they only match
+    for custom profiles. The Tooling API's Profile object exposes the real
+    FullName, but Salesforce restricts any query selecting FullName to a
+    single row, so this must be resolved one profile at a time.
+
+    Falls back to the label if the lookup fails, which is only actually
+    correct for custom profiles — a failed lookup on a standard profile
+    will surface later as a failed FLS/object-access grant with a clear
+    profile name in the warning, rather than failing silently here.
+    """
+    try:
+        result = sf.toolingexecute(
+            "query/",
+            params={"q": f"SELECT Id, FullName FROM Profile WHERE Id = '{profile_id}'"},
+        )
+        records = result.get("records", [])
+        if records and records[0].get("FullName"):
+            return records[0]["FullName"]
+    except Exception:
+        pass
+    return fallback_label
+
+
+def get_profiles() -> List[Dict[str, str]]:
+    """
+    Fetch Profiles (cached for the session), for use as an explicit picker
+    when granting FLS on newly created fields. Each entry carries both the
+    display `label` (Profile.Name, shown in the picker) and the real
+    Metadata API `fullname` (used for every mdapi.Profile.read/update call).
+
+    Resolving `fullname` costs one Tooling API call PER profile (see
+    _resolve_profile_fullname), which is slow done sequentially in orgs
+    with many profiles. These are independent, network-bound reads, so
+    they're resolved concurrently via a thread pool instead — this is
+    the main first-load latency this page has, so it's worth the
+    parallelism. Result is cached for the rest of the session either way.
+    """
+    if st.session_state.get("fa_profiles") is None:
+        profiles: List[Dict[str, str]] = []
+        try:
+            result = sf.query("SELECT Id, Name FROM Profile ORDER BY Name")
+            records = result.get("records", [])
+        except Exception:
+            records = []
+
+        if records:
+            with st.spinner(f"Resolving {len(records)} Profile name(s) for FLS…"):
+                with ThreadPoolExecutor(max_workers=min(10, len(records))) as executor:
+                    future_to_record = {
+                        executor.submit(_resolve_profile_fullname, r["Id"], r["Name"]): r
+                        for r in records
+                    }
+                    resolved: Dict[str, str] = {}
+                    for future in as_completed(future_to_record):
+                        record = future_to_record[future]
+                        try:
+                            resolved[record["Id"]] = future.result()
+                        except Exception:
+                            resolved[record["Id"]] = record["Name"]
+
+            # Thread completion order isn't the original alphabetical order —
+            # rebuild the list in the original SELECT ... ORDER BY Name order.
+            profiles = [
+                {"id": r["Id"], "label": r["Name"], "fullname": resolved.get(r["Id"], r["Name"])}
+                for r in records
+            ]
+
+        st.session_state["fa_profiles"] = profiles
+    return st.session_state["fa_profiles"]
+
+
+def _label_to_fullname_map() -> Dict[str, str]:
+    """Build {display_label: metadata_fullname} from get_profiles()."""
+    return {p["label"]: p["fullname"] for p in get_profiles()}
+
+
+def get_profile_labels() -> List[str]:
+    """Just the display labels, for simple picker widgets."""
+    return [p["label"] for p in get_profiles()]
+
+
+def assign_fls_to_profiles(
+    object_api_name: str,
+    field_api_names: List[str],
+    profile_labels: List[str],
+    visible: bool = True,
+    read_only: bool = False,
+) -> List[Tuple[str, str]]:
+    """
+    Set field-level security for one or more fields, across one or more
+    Profiles, mirroring Salesforce's native "Set Field-Level Security"
+    page:
+        - Visible unchecked              -> not readable, not editable
+        - Visible checked, Read-Only     -> readable, not editable
+        - Visible checked, not Read-Only -> readable AND editable
+
+    All of `field_api_names` get the SAME Visible/Read-Only setting in a
+    single partial Profile update per Profile (fullName + one
+    fieldPermissions entry per field) — Salesforce merges partial Profile
+    updates incrementally (supported since API v35.0), so this only ever
+    touches the specific field/Profile combinations listed here and
+    leaves the rest of each Profile untouched.
+
+    Each Profile is updated independently (not batched together in one
+    call), so one Profile failing — e.g. a bad fullName — can never mask
+    or block the grants for the other Profiles, and each failure keeps
+    its own real Salesforce error message. A field created moments
+    earlier can occasionally not be indexed yet, so each grant gets one
+    short retry before being counted as a real failure.
+
+    profile_labels are the display names shown in the picker (e.g.
+    "System Administrator", "Read Only") — resolved here to each
+    Profile's real Metadata API developer name via the Tooling-API-backed
+    get_profiles() cache, rather than a hardcoded label->fullName table.
+    Hardcoded tables are a real source of bugs: profile developer names
+    are not guaranteed the same across every org/edition (e.g. "Read
+    Only" is not always "ReadOnly").
+
+    This only sets FIELD-level access. It does not grant object-level
+    (CRUD) access — the selected Profile must already have Read access
+    to the parent object for the field permission to take effect. Also
+    note: Salesforce always gives the System Administrator profile full
+    field access regardless of FLS settings, so granting/denying FLS on
+    that profile specifically has no real effect.
+
+    Returns a list of (profile_label, error_message) for any grants that
+    failed after the retry.
+    """
+    if not profile_labels or not field_api_names:
+        return []
+
+    mdapi = sf.mdapi
+    label_to_fullname = _label_to_fullname_map()
+    readable = bool(visible)
+    editable = bool(visible and not read_only)
+
+    field_perms = [
+        mdapi.ProfileFieldLevelSecurity(
+            field=f"{object_api_name}.{field_api_name}",
+            editable=editable,
+            readable=readable,
+        )
+        for field_api_name in field_api_names
+    ]
+
+    failures: List[Tuple[str, str]] = []
+
+    for profile_label in profile_labels:
+        fullname = label_to_fullname.get(profile_label, profile_label)
+        last_error = ""
+        for attempt in range(2):
+            try:
+                partial_profile = mdapi.Profile(
+                    fullName=fullname,
+                    fieldPermissions=field_perms,
+                )
+                mdapi.Profile.update(partial_profile)
+                last_error = ""
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                if attempt == 0:
+                    time.sleep(2)
+        if last_error:
+            failures.append((profile_label, last_error))
+
+    return failures
+
+
+def grant_object_level_security(
+    object_api_name: str,
+    profile_labels: List[str],
+    allow_read: bool = True,
+    allow_create: bool = True,
+    allow_edit: bool = True,
+    allow_delete: bool = False,
+    view_all_records: bool = False,
+    modify_all_records: bool = False,
+) -> List[Tuple[str, str]]:
+    """
+    Ensure the given Profiles (by display label — resolved internally to
+    the real Metadata API developer name, same as assign_fls_to_profiles)
+    have object-level (CRUD) access to object_api_name. FLS alone does
+    nothing if the Profile can't even see the object, so this is normally
+    granted alongside FLS for brand-new custom objects.
+
+    This reads the Profile first only to check whether it already has
+    broader access than requested (e.g. Delete) so that access is never
+    downgraded — but the read result itself is never written back. Only
+    a PARTIAL Profile update (fullName + a single merged objectPermissions
+    entry) is submitted, for the same reason described in
+    assign_fls_to_profiles: writing back a Profile's entire metadata
+    document risks opaque failures from unrelated sections.
+
+    Returns a list of (profile_label, error_message) for any grants that
+    failed after one retry.
+    """
+    mdapi = sf.mdapi
+    label_to_fullname = _label_to_fullname_map()
+    failures: List[Tuple[str, str]] = []
+
+    for profile_label in profile_labels:
+        fullname = label_to_fullname.get(profile_label, profile_label)
+        last_error = ""
+        for attempt in range(2):
+            try:
+                merged_read = allow_read
+                merged_create = allow_create
+                merged_edit = allow_edit
+                merged_delete = allow_delete
+                merged_view_all = view_all_records
+                merged_modify_all = modify_all_records
+
+                try:
+                    existing = mdapi.Profile.read(fullname)
+                    for op in (getattr(existing, "objectPermissions", None) or []):
+                        if getattr(op, "object", None) == object_api_name:
+                            merged_read = bool(getattr(op, "allowRead", False) or allow_read)
+                            merged_create = bool(getattr(op, "allowCreate", False) or allow_create)
+                            merged_edit = bool(getattr(op, "allowEdit", False) or allow_edit)
+                            merged_delete = bool(getattr(op, "allowDelete", False) or allow_delete)
+                            merged_view_all = bool(getattr(op, "viewAllRecords", False) or view_all_records)
+                            merged_modify_all = bool(getattr(op, "modifyAllRecords", False) or modify_all_records)
+                            break
+                except Exception:
+                    # If the inspect-only read fails, fall back to granting
+                    # exactly what was requested rather than blocking the
+                    # whole operation on a read problem.
+                    pass
+
+                partial_profile = mdapi.Profile(
+                    fullName=fullname,
+                    objectPermissions=[
+                        mdapi.ProfileObjectPermissions(
+                            object=object_api_name,
+                            allowRead=merged_read,
+                            allowCreate=merged_create,
+                            allowEdit=merged_edit,
+                            allowDelete=merged_delete,
+                            viewAllRecords=merged_view_all,
+                            modifyAllRecords=merged_modify_all,
+                        )
+                    ],
+                )
+                mdapi.Profile.update(partial_profile)
+                last_error = ""
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                if attempt == 0:
+                    time.sleep(2)
+        if last_error:
+            failures.append((profile_label, last_error))
+
+    return failures
+
+
+def _format_grant_failures(failures: List[Tuple[str, str]]) -> str:
+    """Render (profile_name, error_message) pairs as a readable bullet list."""
+    lines = []
+    for name, err in failures:
+        err = (err or "Unknown error").strip()
+        if len(err) > 300:
+            err = err[:300] + "…"
+        lines.append(f"- **{name}** — {err}")
+    return "\n".join(lines)
+
+
 def create_custom_object(
     object_api_name: str,
     object_label: str,
     plural_label: str,
     description: str,
     field_specs: List[Dict[str, Any]],
-) -> None:
+) -> Dict[str, Any]:
+    """
+    Creates the object, then creates each field ONE AT A TIME — not as a
+    single batch array. Salesforce's createMetadata call validates each
+    field independently, but simple-salesforce raises on the very first
+    failure in a batch, which used to abort the whole handler even when
+    the object (and possibly other valid fields) had already been created
+    server-side, and skip FLS entirely as a result. Creating one at a time
+    isolates each field's outcome so a bad field (e.g. duplicate picklist
+    values) can never block the object or the other valid fields.
+
+    Returns:
+        {
+            "created_fields": [api_name, ...],
+            "failed_fields": [(api_name, error_message), ...],
+        }
+    FLS/object-access grants are handled by the caller using
+    `created_fields`, not inside this function.
+    """
     mdapi = sf.mdapi
 
     custom_object = mdapi.CustomObject(
@@ -426,12 +740,21 @@ def create_custom_object(
 
     mdapi.CustomObject.create(custom_object)
 
-    if field_specs:
-        fields_metadata = [
-            build_custom_field_metadata(mdapi, object_api_name, spec)
-            for spec in field_specs
-        ]
-        mdapi.CustomField.create(fields_metadata)
+    created_fields: List[str] = []
+    failed_fields: List[Tuple[str, str]] = []
+
+    for spec in field_specs:
+        try:
+            field_metadata = build_custom_field_metadata(mdapi, object_api_name, spec)
+            mdapi.CustomField.create(field_metadata)
+            created_fields.append(spec["api_name"])
+        except Exception as exc:
+            failed_fields.append((spec["api_name"], str(exc)))
+
+    return {
+        "created_fields": created_fields,
+        "failed_fields": failed_fields,
+    }
 
 
 def update_custom_field(
@@ -497,13 +820,13 @@ st.caption("Create custom objects, manage custom fields, and perform metadata op
 # Refresh / Clear cache buttons
 btn_spacer, btn_col1, btn_col2 = st.columns([4, 1, 1])
 with btn_col1:
-    if st.button("🔄 Refresh Data", width="stretch", type="secondary"):
+    if st.button("🔄 Refresh Data", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
         st.rerun()
 with btn_col2:
-    if st.button("🗑️ Clear Cache", width="stretch", type="secondary"):
+    if st.button("🗑️ Clear Cache", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
@@ -526,13 +849,13 @@ with tabs[0]:
 
     control_col1, control_col2, control_col3 = st.columns([1, 1, 4])
     with control_col1:
-        st.button("Add Row", on_click=add_create_field_row, width="stretch")
+        st.button("Add Row", on_click=add_create_field_row, width="content")
     with control_col2:
         st.button(
             "Remove Row",
             on_click=remove_last_create_field_row,
             disabled=len(st.session_state.create_field_row_ids) <= 1,
-            width="stretch",
+            width="content",
         )
     with control_col3:
         st.markdown(
@@ -571,12 +894,6 @@ with tabs[0]:
 
     st.markdown("#### Fields")
     st.caption("Leave a row blank if you do not want to create that field.")
-
-    st.info(
-        "💡 After creation of a field from here, if you want it to appear in the "
-        "**Field Analysis** page and **SOQL Editor** page, ensure that the **'Visible'** "
-        "checkbox is checked under the **Field Accessibility** section in Salesforce Setup."
-    )
 
     for index, row_id in enumerate(st.session_state.create_field_row_ids, start=1):
         st.markdown(f"**Field {index}**")
@@ -652,6 +969,103 @@ with tabs[0]:
 
         st.markdown("---")
 
+    # ------------------------------------------------------------
+    # Default Field-Level Security — applied in bulk, once, to every
+    # field that's successfully created above (not per-row). Matches
+    # Salesforce's native "Set Field-Level Security" page: one Visible /
+    # Read-Only setting per submission, applied across the fields you
+    # just created and the Profiles you pick here.
+    # ------------------------------------------------------------
+    st.markdown("#### Default Field-Level Security (FLS) for New Fields")
+    st.caption(
+        "These FLS settings apply in bulk to every custom field that's "
+        "successfully created above — including if one field fails "
+        "validation, the others still get created and still get FLS."
+    )
+    st.info(
+        "💡 Use **Set Field-Level Security** below to make this field "
+        "visible/editable for specific Profiles right away, using the "
+        "same **Visible** / **Read-Only** model as Salesforce's native "
+        "FLS page. If you skip it, Field-Level Security (FLS) will not apply "
+        "your new custom field(s) to any selected profile(s) "
+        "— including the System Administrator profile — by default."
+    )
+
+    tab1_profile_labels = get_profile_labels()
+    fls_cols_tab1 = st.columns([2.6, 1, 1])
+
+    with fls_cols_tab1[0]:
+        if tab1_profile_labels:
+            selected_profiles_tab1 = st.multiselect(
+                "Set Field-Level Security for Profile(s)",
+                options=tab1_profile_labels,
+                max_selections=MAX_PROFILES_PER_GRANT,
+                help="Optional. Leave empty to skip FLS. Capped at "
+                     f"{MAX_PROFILES_PER_GRANT} — each Profile is a separate "
+                     "Metadata API call.",
+                key="create_obj_profiles",
+            )
+        else:
+            selected_profiles_tab1 = []
+            st.caption("No Profiles found in this org — FLS grant skipped.")
+
+    with fls_cols_tab1[1]:
+        st.markdown("<br>", unsafe_allow_html=True)
+        is_visible_tab1 = st.checkbox(
+            "Visible",
+            value=True,
+            key="create_obj_visible",
+            help="Matches Salesforce's native FLS page. Unchecked = fields "
+                 "hidden from the selected Profile(s) entirely.",
+        )
+
+    with fls_cols_tab1[2]:
+        st.markdown("<br>", unsafe_allow_html=True)
+        is_read_only_tab1 = st.checkbox(
+            "Read-Only",
+            value=False,
+            key="create_obj_readonly",
+            help="Only applies if Visible is checked. Checked = the selected "
+                 "Profile(s) can see but not edit these fields.",
+        )
+
+    grant_object_access_tab1 = st.checkbox(
+        "Also grant object-level access (Read/Create/Edit) on this new object "
+        "to the Profile(s) selected above",
+        value=False,
+        key="create_obj_grant_object_access",
+        help="A brand-new object has no access configured for anyone but "
+             "System Administrator. FLS above has no real effect for other "
+             "Profiles until they also have object-level Read access — check "
+             "this if you're not granting it separately in Setup.",
+    )
+
+    _fls_profile_count = len(st.session_state.get("create_obj_profiles", []))
+    _grants_object_access_tab1 = st.session_state.get("create_obj_grant_object_access", False)
+    # FLS = 1 partial update per Profile (covers every field created in this
+    # submission in one call). Object access (if opted in) = 1 read + 1
+    # update per Profile, on the same Profiles.
+    _total_grant_calls = _fls_profile_count * (1 + (2 if _grants_object_access_tab1 else 0))
+
+    if _total_grant_calls > 0:
+        _grant_msg = (
+            f"This submission will make **{_total_grant_calls}** Metadata API call(s) "
+            f"for permission grants (FLS: 1 update per Profile"
+            + (
+                "; object access: 1 read + 1 update per Profile"
+                if _grants_object_access_tab1 else ""
+            )
+            + "), on top of the object/field creation calls."
+        )
+        if _total_grant_calls >= WARN_TOTAL_METADATA_CALLS_AT:
+            st.warning(
+                "⚠️ " + _grant_msg + " That's a fairly large number for one submission — "
+                "consider granting access to fewer Profiles at once if you're "
+                "concerned about your org's daily Metadata API limit."
+            )
+        else:
+            st.caption(_grant_msg)
+
     if st.button("🚀 Create Object & Fields", width="stretch", key="create_object_btn"):
         try:
             if not obj_label.strip():
@@ -662,18 +1076,75 @@ with tabs[0]:
 
             field_specs = collect_create_field_specs()
 
-            create_custom_object(
+            result = create_custom_object(
                 object_api_name=object_api_name,
                 object_label=obj_label.strip(),
                 plural_label=plural_label.strip(),
                 description=description.strip(),
                 field_specs=field_specs,
             )
+            created_fields = result["created_fields"]
+            failed_fields = result["failed_fields"]
 
-            notify_success(
-                f"Object `{object_api_name}` created successfully"
-                + (f" with {len(field_specs)} custom field(s)." if field_specs else ".")
-            )
+            # The object itself is confirmed created at this point — report
+            # that plainly regardless of what happens with individual fields
+            # below, instead of the old behavior where one bad field made
+            # the whole thing look like "Failed to create object".
+            notify_success(f"Object `{object_api_name}` created successfully.")
+
+            if created_fields:
+                notify_success(
+                    f"{len(created_fields)} of {len(field_specs)} field(s) created: "
+                    f"{', '.join(created_fields)}."
+                )
+            if failed_fields:
+                for field_name, err in failed_fields:
+                    notify_error(f"Field `{field_name}` failed to create: {err}")
+
+            selected_profiles_tab1 = st.session_state.get("create_obj_profiles", [])
+            is_visible_tab1 = st.session_state.get("create_obj_visible", True)
+            is_read_only_tab1 = st.session_state.get("create_obj_readonly", False)
+            grant_object_access_tab1 = st.session_state.get("create_obj_grant_object_access", False)
+
+            # FLS is applied only to fields that actually succeeded above —
+            # this is the core fix: a failed field no longer causes FLS to
+            # be skipped entirely for the fields that DID get created.
+            if created_fields and selected_profiles_tab1:
+                if grant_object_access_tab1:
+                    obj_failures = grant_object_level_security(
+                        object_api_name=object_api_name,
+                        profile_labels=selected_profiles_tab1,
+                    )
+                    if obj_failures:
+                        notify_warning(
+                            f"Object-level access grant failed:\n\n"
+                            f"{_format_grant_failures(obj_failures)}\n\n"
+                            f"Grant access manually in Setup if needed."
+                        )
+                    else:
+                        notify_success(
+                            f"Object-level access granted on `{object_api_name}` to "
+                            f"{len(selected_profiles_tab1)} Profile(s)."
+                        )
+
+                fls_failures = assign_fls_to_profiles(
+                    object_api_name=object_api_name,
+                    field_api_names=created_fields,
+                    profile_labels=selected_profiles_tab1,
+                    visible=is_visible_tab1,
+                    read_only=is_read_only_tab1,
+                )
+                if fls_failures:
+                    notify_warning(
+                        f"FLS grant failed for some Profile(s):\n\n"
+                        f"{_format_grant_failures(fls_failures)}\n\n"
+                        f"Grant access manually in Setup if needed."
+                    )
+                else:
+                    notify_success(
+                        f"FLS applied to {len(created_fields)} field(s) for "
+                        f"{len(selected_profiles_tab1)} Profile(s)."
+                    )
 
             # Sync: add new object to the shared global list
             if "fa_all_objects" not in st.session_state or st.session_state["fa_all_objects"] is None:
@@ -791,6 +1262,37 @@ with tabs[1]:
                                     value=selected_field_meta.get("inlineHelpText", "") or "",
                                     help="Shown as a tooltip next to the field in the UI.",
                                 )
+
+                                st.markdown("#### Field-Level Security (FLS)")
+                                st.caption(
+                                    "Optional — update FLS for this field alongside your "
+                                    "other changes. Leave Profile(s) empty to leave FLS "
+                                    "untouched."
+                                )
+                                modify_fls_cols = st.columns([2.6, 1, 1])
+                                modify_available_profiles = get_profile_labels()
+                                with modify_fls_cols[0]:
+                                    if modify_available_profiles:
+                                        modify_selected_profiles = st.multiselect(
+                                            "Set Field-Level Security for Profile(s)",
+                                            options=modify_available_profiles,
+                                            max_selections=MAX_PROFILES_PER_GRANT,
+                                            key="modify_field_profiles",
+                                        )
+                                    else:
+                                        modify_selected_profiles = []
+                                        st.caption("No Profiles found in this org.")
+                                with modify_fls_cols[1]:
+                                    st.markdown("<br>", unsafe_allow_html=True)
+                                    modify_is_visible = st.checkbox(
+                                        "Visible", value=True, key="modify_field_visible"
+                                    )
+                                with modify_fls_cols[2]:
+                                    st.markdown("<br>", unsafe_allow_html=True)
+                                    modify_is_read_only = st.checkbox(
+                                        "Read-Only", value=False, key="modify_field_readonly"
+                                    )
+
                                 delete_field_flag = st.checkbox("Delete this field")
                                 apply_field_changes = st.form_submit_button("Apply Changes", width="stretch")
 
@@ -813,6 +1315,26 @@ with tabs[1]:
                                             )
                                             st.session_state["fa_describe_cache"].pop(selected_obj, None)
                                             notify_success(f"Field `{selected_field_name}` updated successfully.")
+
+                                            if modify_selected_profiles:
+                                                modify_fls_failures = assign_fls_to_profiles(
+                                                    object_api_name=selected_obj,
+                                                    field_api_names=[selected_field_name],
+                                                    profile_labels=modify_selected_profiles,
+                                                    visible=modify_is_visible,
+                                                    read_only=modify_is_read_only,
+                                                )
+                                                if modify_fls_failures:
+                                                    notify_warning(
+                                                        f"Field updated, but FLS grant failed:\n\n"
+                                                        f"{_format_grant_failures(modify_fls_failures)}\n\n"
+                                                        f"Grant access manually in Setup if needed."
+                                                    )
+                                                else:
+                                                    notify_success(
+                                                        f"FLS updated on `{selected_field_name}` for "
+                                                        f"{len(modify_selected_profiles)} Profile(s)."
+                                                    )
                                     except Exception as exc:
                                         notify_error(f"Failed to apply field changes: {exc}")
 
@@ -822,9 +1344,12 @@ with tabs[1]:
                 st.caption(f"Add a new custom field to the **{selected_obj}** object.")
 
                 st.info(
-                    "💡 After creation of a field from here, if you want it to appear in the "
-                    "**Field Analysis** page and **SOQL Editor** page, ensure that the **'Visible'** "
-                    "checkbox is checked under the **Field Accessibility** section in Salesforce Setup."
+                    "💡 Use **Set Field-Level Security** below to make this field "
+                    "visible/editable for specific Profiles right away, using the "
+                    "same **Visible** / **Read-Only** model as Salesforce's native "
+                    "FLS page. If you skip it, Field-Level Security (FLS) will not apply "
+                    "your new custom field to any selected profile(s) "
+                    "— including the System Administrator profile — by default."
                 )
 
                 new_field_cols = st.columns([2.1, 2.1, 1.5, 1.2, 1.2])
@@ -896,6 +1421,76 @@ with tabs[1]:
                         help="Comma-separated values. First value becomes the default.",
                     )
 
+                existing_profile_labels = get_profile_labels()
+                if existing_profile_labels:
+                    fls_col2, visible_col2, readonly_col2 = st.columns([2.6, 1, 1])
+                    with fls_col2:
+                        st.multiselect(
+                            "Set Field-Level Security for Profile(s)",
+                            options=existing_profile_labels,
+                            key="new_field_fls",
+                            max_selections=MAX_PROFILES_PER_GRANT,
+                            help="Optional. Leave empty to skip FLS. Capped "
+                                 f"at {MAX_PROFILES_PER_GRANT} — each one is a separate "
+                                 "Metadata API call.",
+                        )
+                    with visible_col2:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        st.checkbox(
+                            "Visible",
+                            key="new_field_fls_visible",
+                            value=True,
+                            help="Matches Salesforce's native FLS page. Unchecked = field "
+                                 "hidden from the selected Profile(s) entirely.",
+                        )
+                    with readonly_col2:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        st.checkbox(
+                            "Read-Only",
+                            key="new_field_fls_readonly",
+                            value=False,
+                            help="Only applies if Visible is checked. Checked = the "
+                                 "selected Profile(s) can see but not edit this field.",
+                        )
+                    st.checkbox(
+                        f"Also grant object-level access (Read/Create/Edit) on "
+                        f"`{selected_obj}` to the Profile(s) selected above",
+                        key="new_field_grant_object_access",
+                        value=False,
+                        help="Leave unchecked if these Profiles can already access "
+                             f"`{selected_obj}` — this is mainly for objects that were just "
+                             "created and have no access configured yet. Existing broader "
+                             "access is never downgraded.",
+                    )
+                else:
+                    st.caption("No Profiles found in this org — FLS grant skipped.")
+
+                _existing_fls_count = len(st.session_state.get("new_field_fls", []))
+                _grants_object_access = st.session_state.get("new_field_grant_object_access", False)
+                # FLS = 1 partial update per Profile. Object access (if opted
+                # in) = 1 read + 1 update per Profile, on the same Profiles.
+                _total_existing_calls = _existing_fls_count * (1 + (2 if _grants_object_access else 0))
+
+                if _total_existing_calls > 0:
+                    _grant_msg_existing = (
+                        f"This submission will make **{_total_existing_calls}** Metadata "
+                        f"API call(s) for permission grants (FLS: 1 update per Profile"
+                        + (
+                            "; object access: 1 read + 1 update per Profile"
+                            if _grants_object_access else ""
+                        )
+                        + "), on top of the field creation call."
+                    )
+                    if _total_existing_calls >= WARN_TOTAL_METADATA_CALLS_AT:
+                        st.warning(
+                            "⚠️ " + _grant_msg_existing + " That's a fairly large number "
+                            "for one submission — consider granting access to fewer "
+                            "Profiles at once if you're concerned about your org's "
+                            "daily Metadata API limit."
+                        )
+                    else:
+                        st.caption(_grant_msg_existing)
+
                 if st.button("🚀 Create Custom Field", width="stretch", key="create_new_field_btn"):
                     try:
                         if not new_field_type:
@@ -943,6 +1538,47 @@ with tabs[1]:
                         st.session_state["fa_describe_cache"].pop(selected_obj, None)
                         notify_success(f"Custom field `{api_name}` created successfully on `{selected_obj}`.")
 
+                        selected_profiles = st.session_state.get("new_field_fls", [])
+
+                        if selected_profiles and st.session_state.get("new_field_grant_object_access", False):
+                            obj_perm_failures = grant_object_level_security(
+                                object_api_name=selected_obj,
+                                profile_labels=selected_profiles,
+                            )
+                            if obj_perm_failures:
+                                notify_warning(
+                                    f"Object-level access grant on `{selected_obj}` failed:\n\n"
+                                    f"{_format_grant_failures(obj_perm_failures)}\n\n"
+                                    f"Grant access manually in Setup if needed."
+                                )
+                            else:
+                                notify_success(
+                                    f"Object-level access granted on `{selected_obj}` to "
+                                    f"{len(selected_profiles)} Profile(s)."
+                                )
+
+                        if selected_profiles:
+                            fls_visible = st.session_state.get("new_field_fls_visible", True)
+                            fls_read_only = st.session_state.get("new_field_fls_readonly", False)
+                            fls_failures = assign_fls_to_profiles(
+                                object_api_name=selected_obj,
+                                field_api_names=[api_name],
+                                profile_labels=selected_profiles,
+                                visible=fls_visible,
+                                read_only=fls_read_only,
+                            )
+                            if fls_failures:
+                                notify_warning(
+                                    f"Field created, but FLS grant failed:\n\n"
+                                    f"{_format_grant_failures(fls_failures)}\n\n"
+                                    f"Grant access manually in Setup if needed."
+                                )
+                            else:
+                                notify_success(
+                                    f"FLS set on `{api_name}` for "
+                                    f"{len(selected_profiles)} Profile(s)."
+                                )
+
                     except Exception as exc:
                         notify_error(f"Failed to create custom field: {exc}")
 
@@ -977,7 +1613,7 @@ with tabs[2]:
             )
 
             if action == "Read":
-                if st.button("Read Object Metadata", width="stretch"):
+                if st.button("Read Object Metadata", width="content"):
                     try:
                         with st.spinner("Loading object metadata..."):
                             obj_meta = read_custom_object_metadata(custom_obj_selected)
@@ -1064,7 +1700,7 @@ with tabs[2]:
                         notify_error(f"Failed to delete object: {exc}")
 
             elif action == "Describe":
-                if st.button("Describe Object", width="stretch"):
+                if st.button("Describe Object", width="content"):
                     try:
                         with st.spinner("Describing object..."):
                             description_data = getattr(sf, custom_obj_selected).describe()
