@@ -820,13 +820,13 @@ st.caption("Create custom objects, manage custom fields, and perform metadata op
 # Refresh / Clear cache buttons
 btn_spacer, btn_col1, btn_col2 = st.columns([4, 1, 1])
 with btn_col1:
-    if st.button("🔄 Refresh Data", width="content", type="secondary"):
+    if st.button("🔄 Refresh Data", width="stretch", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
         st.rerun()
 with btn_col2:
-    if st.button("🗑️ Clear Cache", width="content", type="secondary"):
+    if st.button("🗑️ Clear Cache", width="stretch", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
@@ -1615,7 +1615,7 @@ with tabs[2]:
             )
 
             if action == "Read":
-                if st.button("Read Object Metadata", width="content"):
+                if st.button("Read Object Metadata", width="stretch"):
                     try:
                         with st.spinner("Loading object metadata..."):
                             obj_meta = read_custom_object_metadata(custom_obj_selected)
@@ -1702,7 +1702,7 @@ with tabs[2]:
                         notify_error(f"Failed to delete object: {exc}")
 
             elif action == "Describe":
-                if st.button("Describe Object", width="content"):
+                if st.button("Describe Object", width="stretch"):
                     try:
                         with st.spinner("Describing object..."):
                             description_data = getattr(sf, custom_obj_selected).describe()

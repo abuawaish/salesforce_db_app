@@ -478,9 +478,12 @@ def fetch_session_info(_sf):
 st.title("👤 Session Information")
 st.caption("Detailed information about your current Salesforce session and connection.")
 
-if st.button("🔄 Refresh Data", width="content"):
-    st.cache_data.clear()
-    st.rerun()
+btn_spacer, btn_col1 = st.columns([4, 1])
+
+with btn_col1:
+    if st.button("🔄 Refresh Data", width="stretch", type="secondary"):
+        st.cache_data.clear()
+        st.rerun()
 
 st.divider()
 
