@@ -4,7 +4,7 @@ import streamlit as st
 # Page Configuration
 # ------------------------------------------------------------
 st.set_page_config(
-    page_title="Salesforce Data Query",
+    page_title=" SF Query Studio Home",
     page_icon="☁️",
     layout="wide",
     initial_sidebar_state="auto",
@@ -591,7 +591,7 @@ with hero_left:
     st.markdown("""
     <div class="hero-container">
         <div class="hero-eyebrow"><span class="live-dot"></span> Streamlit · simple-salesforce · REST API</div>
-        <div class="hero-title">☁️ Salesforce Data Query &amp; Editor</div>
+        <div class="hero-title">☁️ SF Query Studio</div>
         <div class="hero-sub">
             Query, browse, and edit your Salesforce data straight from your browser —
             no dev console, no separate SOQL tool, no context switching.
