@@ -883,10 +883,10 @@ with tabs[0]:
 
     control_col1, control_col2, control_col3 = st.columns([1, 1, 4])
     with control_col1:
-        st.button("Add Row", on_click=add_create_field_row, width="content")
+        st.button("Insert Row", on_click=add_create_field_row, width="content")
     with control_col2:
         st.button(
-            "Remove Row",
+            "Delete Row",
             on_click=remove_last_create_field_row,
             disabled=len(st.session_state.create_field_row_ids) <= 1,
             width="content",
@@ -897,6 +897,7 @@ with tabs[0]:
             unsafe_allow_html=True,
         )
 
+    st.markdown("<br>", unsafe_allow_html=True)
     for index, row_id in enumerate(st.session_state.create_field_row_ids, start=1):
         st.markdown(f"**Field {index}**")
         cols = st.columns([2.1, 2.1, 1.5, 1.2, 1.2])
@@ -994,7 +995,7 @@ with tabs[0]:
     )
 
     tab1_profile_labels = get_profile_labels()
-    fls_cols_tab1 = st.columns([2.6, 1, 1])
+    fls_cols_tab1 = st.columns([2.6, 1, 1], vertical_alignment="bottom")
 
     with fls_cols_tab1[0]:
         if tab1_profile_labels:
@@ -1012,7 +1013,6 @@ with tabs[0]:
             st.caption("No Profiles found in this org — FLS grant skipped.")
 
     with fls_cols_tab1[1]:
-        st.markdown("<br>", unsafe_allow_html=True)
         is_visible_tab1 = st.checkbox(
             "Visible",
             value=True,
@@ -1022,7 +1022,6 @@ with tabs[0]:
         )
 
     with fls_cols_tab1[2]:
-        st.markdown("<br>", unsafe_allow_html=True)
         is_read_only_tab1 = st.checkbox(
             "Read-Only",
             value=False,
@@ -1031,6 +1030,7 @@ with tabs[0]:
                  "Profile(s) can see but not edit these fields.",
         )
 
+    st.markdown("<br>", unsafe_allow_html=True)
     grant_object_access_tab1 = st.checkbox(
         "Also grant object-level access (Read/Create/Edit) on this new object "
         "to the Profile(s) selected above",
@@ -1271,7 +1271,7 @@ with tabs[1]:
                                     "other changes. Leave Profile(s) empty to leave FLS "
                                     "untouched."
                                 )
-                                modify_fls_cols = st.columns([2.6, 1, 1])
+                                modify_fls_cols = st.columns([2.6, 1, 1], vertical_alignment="bottom")
                                 modify_available_profiles = get_profile_labels()
                                 with modify_fls_cols[0]:
                                     if modify_available_profiles:
@@ -1285,16 +1285,15 @@ with tabs[1]:
                                         modify_selected_profiles = []
                                         st.caption("No Profiles found in this org.")
                                 with modify_fls_cols[1]:
-                                    st.markdown("<br>", unsafe_allow_html=True)
                                     modify_is_visible = st.checkbox(
                                         "Visible", value=True, key="modify_field_visible"
                                     )
                                 with modify_fls_cols[2]:
-                                    st.markdown("<br>", unsafe_allow_html=True)
                                     modify_is_read_only = st.checkbox(
                                         "Read-Only", value=False, key="modify_field_readonly"
                                     )
 
+                                st.markdown("<br>", unsafe_allow_html=True)
                                 delete_field_flag = st.checkbox("Delete this field")
                                 apply_field_changes = st.form_submit_button("Apply Changes", width="stretch")
 
@@ -1425,7 +1424,7 @@ with tabs[1]:
 
                 existing_profile_labels = get_profile_labels()
                 if existing_profile_labels:
-                    fls_col2, visible_col2, readonly_col2 = st.columns([2.6, 1, 1])
+                    fls_col2, visible_col2, readonly_col2 = st.columns([2.6, 1, 1], vertical_alignment="bottom")
                     with fls_col2:
                         st.multiselect(
                             "Set Field-Level Security for Profile(s)",
@@ -1437,7 +1436,6 @@ with tabs[1]:
                                  "Metadata API call.",
                         )
                     with visible_col2:
-                        st.markdown("<br>", unsafe_allow_html=True)
                         st.checkbox(
                             "Visible",
                             key="new_field_fls_visible",
@@ -1446,7 +1444,6 @@ with tabs[1]:
                                  "hidden from the selected Profile(s) entirely.",
                         )
                     with readonly_col2:
-                        st.markdown("<br>", unsafe_allow_html=True)
                         st.checkbox(
                             "Read-Only",
                             key="new_field_fls_readonly",
@@ -1454,6 +1451,8 @@ with tabs[1]:
                             help="Only applies if Visible is checked. Checked = the "
                                  "selected Profile(s) can see but not edit this field.",
                         )
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
                     st.checkbox(
                         f"Also grant object-level access (Read/Create/Edit) on "
                         f"`{selected_obj}` to the Profile(s) selected above",
