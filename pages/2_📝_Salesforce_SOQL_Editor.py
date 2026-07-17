@@ -754,8 +754,7 @@ with st.form("soql_query_form"):
 if run_query_pressed:
     soql = st.session_state.soql_query_input.strip()
     if not soql:
-        st.toast("No SOQL query entered.", icon="❌")
-        st.error("❌ Please enter a SOQL query.")
+        show_temporary_message("Please enter a SOQL query.", level="error")
     else:
         add_query_history(soql)
 
@@ -776,7 +775,7 @@ if run_query_pressed:
 
             st.session_state["query_df"] = df
 
-            st.toast("Query executed successfully!", icon="✅")
+            show_temporary_message("Query executed successfully!", level="success")
             if records and len(df) != len(records):
                 st.success(
                     f"✅ {len(records)} record(s) returned → "
@@ -786,7 +785,7 @@ if run_query_pressed:
                 st.success(f"✅ {len(df)} records returned")
 
         except Exception as e:
-            st.toast("Exception occurred while executing query.", icon="❌")
+            show_temporary_message("Exception occurred while executing query.", level="error")
             show_error("Query failed", e)
             st.session_state["query_df"] = None
 
@@ -810,13 +809,16 @@ with history_col1:
     )
 
 with history_col2:
-    st.button(
+    is_pressed = st.button(
         "Clear History",
         on_click=clear_query_history,
         help="Remove all saved SOQL query history.",
         disabled=not st.session_state.soql_history,
         width="content",
     )
+
+    if is_pressed:
+        show_temporary_message("SOQL query history cleared.", level="info")
 
 if not st.session_state.soql_history:
     st.caption("No saved SOQL queries yet. Run a query to add it to history.")
@@ -1189,13 +1191,13 @@ if "edit_df" in st.session_state:
                     if not delete_ids:
                         if rows_marked_for_delete.empty:
                             st.info(
-                                f"No rows are currently marked for deletion. "
+                                f"ℹ️ No rows are currently marked for deletion. "
                                 f"Tick the '{DELETE_COL}' checkbox for the row(s) "
                                 f"you want to delete, then click delete again."
                             )
                         else:
                             st.warning(
-                                "Checked rows for deletion have no Salesforce ID. "
+                                "⚠️ Checked rows for deletion have no Salesforce ID. "
                                 "Only existing records can be deleted; new/unsaved "
                                 "rows will be ignored."
                             )
