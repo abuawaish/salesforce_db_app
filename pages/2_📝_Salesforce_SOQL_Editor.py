@@ -737,23 +737,24 @@ st.divider()
 # ============================================================
 st.subheader("🔍 1. Run SOQL Query")
 
-soql = st.text_area(
-    "SOQL Query (SELECT only)",
-    height=120,
-    placeholder="Enter a valid SOQL SELECT query here (e.g., SELECT Id, Name FROM Account LIMIT 10)",
-    key="soql_query_input",
-)
+with st.form("soql_query_form"):
+    soql = st.text_area(
+        "SOQL Query (SELECT only)",
+        height=120,
+        placeholder="Enter a valid SOQL SELECT query here (e.g., SELECT Id, Name FROM Account LIMIT 10)",
+        key="soql_query_input",
+    )
 
-st.caption(
-    "💡 **Tip:** Use **Ctrl+Z** / **Cmd+Z** to undo and "
-    "**Ctrl+Y** / **Cmd+Shift+Z** to redo inside the query box."
-)
+    st.caption(
+        "💡Press Ctrl+Enter to submit the query."
+    )
 
-run_query_pressed = st.button("🚀 Run Query")
+    run_query_pressed = st.form_submit_button("Run Query", icon="🚀")
 
 if run_query_pressed:
     soql = st.session_state.soql_query_input.strip()
     if not soql:
+        st.toast("No SOQL query entered.", icon="❌")
         st.error("❌ Please enter a SOQL query.")
     else:
         add_query_history(soql)
@@ -775,6 +776,7 @@ if run_query_pressed:
 
             st.session_state["query_df"] = df
 
+            st.toast("Query executed successfully!", icon="✅")
             if records and len(df) != len(records):
                 st.success(
                     f"✅ {len(records)} record(s) returned → "
@@ -784,6 +786,7 @@ if run_query_pressed:
                 st.success(f"✅ {len(df)} records returned")
 
         except Exception as e:
+            st.toast("Exception occurred while executing query.", icon="❌")
             show_error("Query failed", e)
             st.session_state["query_df"] = None
 
