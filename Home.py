@@ -4,7 +4,7 @@ import streamlit as st
 # Page Configuration
 # ------------------------------------------------------------
 st.set_page_config(
-    page_title=" SF Query Studio Home",
+    page_title="SF Query Studio Home",
     page_icon="☁️",
     layout="wide",
     initial_sidebar_state="auto",
@@ -12,7 +12,7 @@ st.set_page_config(
         'Get Help': 'https://github.com/abuawaish/salesforce_db_app#readme',
         'Report a bug': 'https://github.com/abuawaish/salesforce_db_app/issues/new',
         'About': """
-        ## ☁️ Salesforce Data Query & Editor
+        ## ☁️ SF Query Studio
 
         Query, browse, and edit your Salesforce data — no dev console, no separate SOQL tool.
 
