@@ -55,62 +55,107 @@ st.markdown(
         letter-spacing: 1px;
         margin-bottom: 8px;
     }
-    .metric-value {
-        color: var(--primary-color);
-        font-size: 1.6rem;
-        font-weight: 700;
-        line-height: 1.25;
-        word-break: break-word;
-    }
-    .info-card {
-        background: var(--secondary-background-color);
-        border: 1px solid rgba(128, 128, 128, 0.15);
+    .footer-panel {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        align-items: center;
+        padding: 16px 18px;
+        margin-top: 20px;
+        border-top: 1px solid rgba(128, 128, 128, 0.12);
+        background: color-mix(in srgb, var(--secondary-background-color) 92%, transparent);
         border-radius: 12px;
-        padding: 0;
-        margin-bottom: 16px;
-        overflow: hidden;
+        color: var(--text-color);
+        opacity: 0.86;
     }
-    .info-card-header {
-        background: color-mix(in srgb, var(--primary-color) 10%, var(--secondary-background-color));
-        padding: 14px 20px;
-        border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+    .footer-panel .footer-item {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        word-break: break-word;
     }
-    .info-card-header h4 {
-        color: var(--primary-color);
-        margin: 0;
-        font-size: 1rem;
-        font-weight: 600;
+    .footer-panel .footer-item:not(:last-child) {
+        border-right: 1px solid rgba(128, 128, 128, 0.12);
+        padding-right: 16px;
+        margin-right: 12px;
     }
-    .info-card-body {
-        padding: 16px 20px;
+    .footer-icon {
+        font-size: 1.05rem;
+        display: inline-block;
+        margin-right: 6px;
+        opacity: 0.95;
+    }
+    @media (max-width: 640px) {
+        .footer-panel {
+            grid-template-columns: 1fr;
+            padding: 14px 16px;
+        }
+        .footer-panel .footer-item {
+            width: 100%;
+            border-right: none;
+            padding-right: 0;
+            margin-right: 0;
+        }
+    }
+    .footer-panel strong {
+        color: var(--text-color);
+        opacity: 0.95;
+        font-weight: 700;
     }
     .data-table {
         width: 100%;
         border-collapse: collapse;
+        border-spacing: 0;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+        background: color-mix(in srgb, var(--secondary-background-color) 95%, var(--background-color));
+        border-radius: 12px;
+        overflow: hidden;
     }
     .data-table tr {
-        border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+        border-bottom: 1px solid transparent;
+        transition: border-color 0.18s ease, background-color 0.18s ease;
+    }
+    .data-table tr:hover {
+        border-bottom-color: rgba(128, 128, 128, 0.12);
+        background: color-mix(in srgb, var(--secondary-background-color) 96%, transparent);
+    }
+    .data-table tr:first-child td:first-child {
+        border-top-left-radius: 10px;
+    }
+    .data-table tr:first-child td:last-child {
+        border-top-right-radius: 10px;
+    }
+    .data-table tr:last-child td:first-child {
+        border-bottom-left-radius: 10px;
+    }
+    .data-table tr:last-child td:last-child {
+        border-bottom-right-radius: 10px;
     }
     .data-table tr:last-child {
         border-bottom: none;
     }
     .data-table td {
-        padding: 10px 0;
+        padding: 12px 18px;
         vertical-align: top;
     }
     .data-table td:first-child {
         width: 35%;
         color: var(--text-color);
         opacity: 0.75;
-        font-weight: 600;
+        font-weight: 700;
         font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        padding: 12px 18px 12px 18px;
         padding-right: 16px;
+        background: color-mix(in srgb, var(--secondary-background-color) 88%, transparent);
+        border-right: 1px solid rgba(128, 128, 128, 0.10);
     }
     .data-table td:last-child {
         color: var(--text-color);
+        opacity: 0.85;
         font-weight: 400;
         font-size: 0.9rem;
         word-break: break-word;
@@ -118,21 +163,22 @@ st.markdown(
     .badge {
         display: inline-block;
         padding: 3px 10px;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
+        border-radius: 999px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        opacity: 0.95;
     }
     .badge-success {
-        background: rgba(34, 197, 94, 0.15);
-        color: #16a34a;
+        background: rgba(34, 197, 94, 0.12);
+        color: rgba(22, 163, 74, 0.95);
     }
     .badge-error {
-        background: rgba(239, 68, 68, 0.15);
-        color: #dc2626;
+        background: rgba(239, 68, 68, 0.12);
+        color: rgba(220, 38, 38, 0.95);
     }
     .badge-neutral {
-        background: rgba(245, 158, 11, 0.15);
-        color: #d97706;
+        background: rgba(245, 158, 11, 0.12);
+        color: rgba(217, 119, 6, 0.95);
     }
     .error-banner {
         background: rgba(239, 68, 68, 0.08);
@@ -152,6 +198,46 @@ st.markdown(
         border-radius: 6px;
         word-break: break-all;
         display: inline-block;
+    }
+    .footer-panel {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        align-items: center;
+        padding: 16px 18px;
+        margin-top: 20px;
+        border-top: 1px solid rgba(128, 128, 128, 0.12);
+        background: color-mix(in srgb, var(--secondary-background-color) 92%, transparent);
+        border-radius: 12px;
+        color: var(--text-color);
+        opacity: 0.86;
+    }
+    .footer-panel div {
+        font-size: 0.9rem;
+        line-height: 1.6;
+        word-break: break-word;
+    }
+    .footer-panel div:not(:last-child) {
+        border-right: 1px solid rgba(128, 128, 128, 0.12);
+        padding-right: 16px;
+        margin-right: 12px;
+    }
+    @media (max-width: 640px) {
+        .footer-panel {
+            grid-template-columns: 1fr;
+            padding: 14px 16px;
+        }
+        .footer-panel div {
+            width: 100%;
+            border-right: none;
+            padding-right: 0;
+            margin-right: 0;
+        }
+    }
+    .footer-panel strong {
+        color: var(--text-color);
+        opacity: 0.95;
+        font-weight: 700;
     }
     div[data-testid="stExpander"] details {
         border: 1px solid rgba(128, 128, 128, 0.15);
@@ -698,8 +784,10 @@ with st.expander("📄 Raw Data (JSON)", expanded=False):
 # Footer
 # ------------------------------------------------------------
 st.divider()
-footer_col1, footer_col2 = st.columns([1, 1])
-with footer_col1:
-    st.caption(f"Data fetched at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-with footer_col2:
-    st.caption(f"Connected to: {user_name.upper()} AT {org_name} ON API {info.get('api_version', 'N/A')}")
+footer_html = f"""
+<div class="footer-panel">
+    <div class="footer-item"><span class="footer-icon">📅</span><span><strong>Data fetched at:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</span></div>
+    <div class="footer-item"><span class="footer-icon">🔗</span><span><strong>Connected to:</strong> {user_name.upper()} AT {org_name} ON API {info.get('api_version', 'N/A')}</span></div>
+</div>
+"""
+st.markdown(footer_html, unsafe_allow_html=True)
