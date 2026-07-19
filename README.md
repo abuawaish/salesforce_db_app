@@ -1,6 +1,6 @@
 # Salesforce Query Studio
 
-A Streamlit-based Salesforce utility for running SOQL queries, inspecting object metadata, and performing inline record edits directly from your browser.
+A Streamlit-based Salesforce toolkit for running SOQL queries, exploring object metadata, and managing records directly from your browser.
 
 <!-- Badges -->
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
