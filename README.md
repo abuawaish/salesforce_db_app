@@ -1,4 +1,4 @@
-# Salesforce Data Query & Editor
+# Salesforce Query Studio
 
 A Streamlit-based Salesforce utility for running SOQL queries, inspecting object metadata, and performing inline record edits directly from your browser.
 
@@ -15,6 +15,7 @@ This app provides a clean, dark-themed interface for:
 - Downloading query results as CSV.
 - Loading Salesforce records for inline editing, insert, update, and delete operations.
 - Exploring Salesforce object metadata, field counts, relationships, picklists, and field type distributions.
+- Managing custom objects and fields, including new Field-Level Security (FLS) support for assigning profile-based read and edit access.
 
 ## Features
 
@@ -71,6 +72,8 @@ Found under the `Object Manager` page:
 
 - Create new custom objects and define custom fields (Text, Number, Picklist, etc.) using the Metadata API.
 - Modify or delete existing custom fields on any object.
+- Apply Field-Level Security (FLS) when creating or updating fields, including profile-based read and edit permissions.
+- Set default FLS behavior for newly created fields to streamline field rollout across profiles.
 - Browse all available Salesforce objects in the connected org.
 - View object labels, API names, field counts, and record counts at a glance.
 - Search and filter objects for faster navigation.
@@ -218,8 +221,12 @@ streamlit run app.py
 ## Security & Privacy
 
 - This app requires Salesforce credentials (username, password, and optionally a security token). Do not commit credentials to version control.
-- When deploying, prefer using secure secret storage (environment variables or a secrets manager) rather than embedding credentials in files.
-- If your org enforces IP whitelisting, you can leave the security token blank when your IP is trusted in Salesforce.
+- Store secrets securely using environment variables, Streamlit secrets, or a secrets manager rather than hard-coding them into source files.
+- Use least-privilege access when connecting to Salesforce. The app should only be used with accounts that have the minimum permissions needed for the intended operations.
+- Be mindful of data exposure: SOQL results, record edits, and object metadata can contain sensitive business information. Avoid sharing screenshots or exports that include confidential data.
+- If your org enforces IP whitelisting, you can leave the security token blank when your IP is already trusted in Salesforce.
+- When deploying publicly, ensure your app is protected behind authentication and that any hosted environment is configured to avoid leaking session or credential information.
+- Review any generated reports, exports, or copied query results before sharing them externally.
 
 ## Contributing
 
@@ -231,5 +238,7 @@ Contributions are welcome. Suggested workflow:
 
 ## Contact
 
-If you have questions or want to report issues, open an issue in the GitHub repository or contact the maintainer: abuawaish (GitHub).
+If you have questions, run into issues, or want to suggest improvements, please open an issue in the GitHub repository or reach out to the maintainer via GitHub: abuawaish.
+
+Contributions and feedback are always welcome.
 
