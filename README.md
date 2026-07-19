@@ -91,15 +91,18 @@ Found under the `Session Information` page:
 
 ## Repository Structure
 
-- `app.py` - Main Streamlit homepage, custom styling, and feature overview.
-- `permissions.py` - Salesforce permission helpers that load the connected user's profile permissions, enforce read-only defaults, and gate admin-only pages.
-- `pages/1_⚙️_Configuration.py` - Salesforce connection setup.
-- `pages/2_📝_Salesforce_SOQL_Editor.py` - SOQL query runner and inline record editor.
-- `pages/3_📊_Field_Analysis.py` - Salesforce object metadata and field analysis.
-- `pages/4_📦_Object_Manager.py` - Object manager for browsing and managing Salesforce objects.
-- `pages/5_👤_Session_Info.py` - Session information page showing current Salesforce connection details.
-- `requirements.txt` - Python dependencies.
-- `pyproject.toml` - Dependency group definitions for the app.
+The project is organized around a main app entry point, a small set of shared utilities, and a multi-page Streamlit interface:
+
+- `Home.py` - Main Streamlit entry point, homepage layout, and overall app styling.
+- `permissions.py` - Shared helpers for loading Salesforce profile permissions, applying read-only safeguards, and controlling access to admin-level features.
+- `pages/1_⚙️_Configuration.py` - Connection setup page for authenticating to Salesforce and selecting the environment.
+- `pages/2_📝_Salesforce_SOQL_Editor.py` - SOQL editor for running queries, viewing results, and managing records inline.
+- `pages/3_📊_Field_Analysis.py` - Metadata explorer for analyzing fields, relationships, picklists, and field type distributions.
+- `pages/4_📦_Object_Manager.py` - Object and field management experience for creating, editing, and configuring custom metadata.
+- `pages/5_👤_Session_Info.py` - Session diagnostics page showing the active connection details and org information.
+- `requirements.txt` - Python dependencies required to run the app.
+- `pyproject.toml` - Project metadata and dependency group configuration.
+- `assets/` - Screenshots and static assets used in the documentation and UI.
 
 ## Dependencies
 
