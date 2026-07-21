@@ -26,42 +26,68 @@ st.set_page_config(
     }
 )
 
+# ============================================================
+# CSS — Design System
+# ============================================================
 st.markdown("""
 <style>
-            
-html {
-    font-size: 90%;
-}
-            
 /* ==========================================================
    GLOBAL VARIABLES
 ========================================================== */
+:root, .stApp {
+    --accent: #D97706;
+    --accent-hover: #B45309;
+    --accent-soft: rgba(217,119,6,.10);
+    --accent-soft-solid: rgba(217,119,6,.14);
+    --accent-glow: rgba(217,119,6,.25);
 
-/* Accent & semantic colors (theme-agnostic) */
-:root {
-    --accent: #FFA500;
-    --accent-soft: rgba(255,165,0,.14);
-    --accent-soft-solid: rgba(255,165,0,.15);
-    --sf-blue: #00A1E0;
-    --success: #2ED9A3;
-    --success-soft: rgba(46,217,163,.12);
-    --danger: #FF6B6B;
-    --danger-soft: rgba(255,107,107,.12);
-    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    /* Salesforce brand */
+    --sf-blue: #0077B5;
+    --sf-blue-soft: rgba(0,119,181,.08);
 
-    /* Streamlit native tokens (auto-switch with theme) */
-    --st-bg: var(--background-color, #0E1117);
-    --st-fg: var(--text-color, #FAFAFA);
-    --st-secondary-bg: var(--secondary-background-color, #262730);
-    --st-border: rgba(250,250,250,0.2);
-    --st-muted: #A6A6A6;
+    /* Semantic */
+    --success: #059669;
+    --success-soft: rgba(5,150,105,.10);
+    --danger: #DC2626;
+    --danger-soft: rgba(220,38,38,.08);
+    --warning: #D97706;
+
+    /* Typography */
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 Helvetica, Arial, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+                 "Liberation Mono", monospace;
+
+    /* Surfaces — Streamlit's secondary bg auto-switches */
+    --glass-bg: var(--secondary-background-color, #262730);
+    --glass-border: rgba(128, 128, 128, 0.12);
+    --surface-hover: rgba(128, 128, 128, 0.10);
+    --surface-tint: rgba(128, 128, 128, 0.08);
+
+    /* Spacing scale */
+    --space-xs: 0.5rem;
+    --space-sm: 0.75rem;
+    --space-md: 1.25rem;
+    --space-lg: 2rem;
+    --space-xl: 3rem;
+    --space-2xl: 4.5rem;
+
+    /* Radii */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-pill: 999px;
 }
 
 /* ==========================================================
-   MAIN APP BACKGROUND & TYPOGRAPHY
+   LOAD GOOGLE FONTS
 ========================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
+/* ==========================================================
+   GLOBAL RESETS & TYPOGRAPHY
+========================================================== */
 .stApp {
     font-family: var(--font-body);
 }
@@ -73,38 +99,38 @@ html {
     font-family: var(--font-body);
 }
 
+/* Hide default Streamlit header spacing */
+.block-container {
+    padding-top: 3.5rem !important;
+}
+
 /* ==========================================================
    SIDEBAR
 ========================================================== */
-
 section[data-testid="stSidebar"] {
-    border-right: 1px solid var(--st-border) !important;
+    border-right: 1px solid var(--glass-border) !important;
 }
 
 [data-testid="stSidebarNav"] a {
-    border-radius: 12px !important;
-    padding: 0.75rem 1rem !important;
+    border-radius: var(--radius-md) !important;
+    padding: 0.7rem 1rem !important;
     text-decoration: none !important;
     border-left: 3px solid transparent !important;
-    transition: all .25s ease !important;
+    transition: all .2s cubic-bezier(.4,0,.2,1) !important;
     font-weight: 500 !important;
 }
-
 [data-testid="stSidebarNav"] a:hover {
-    background: color-mix(in srgb, var(--st-secondary-bg) 20%, rgba(255,255,255,0.16)) !important;
-    color: var(--st-fg) !important;
+    background: var(--surface-hover) !important;
+    color: inherit !important;
     border-left-color: var(--accent) !important;
-    transform: translateX(4px);
+    transform: translateX(3px);
 }
-
 [data-testid="stSidebarNav"] a[aria-current="page"] {
     background: var(--accent-soft) !important;
-    border-left: 4px solid var(--accent) !important;
-    box-shadow: inset 0 0 8px rgba(255,165,0,0.15);
+    border-left: 3px solid var(--accent) !important;
     color: var(--accent) !important;
     font-weight: 600 !important;
 }
-
 [data-testid="stSidebarNav"] a:focus-visible,
 a:focus-visible {
     outline: 2px solid var(--accent) !important;
@@ -114,423 +140,542 @@ a:focus-visible {
 /* ==========================================================
    SIDEBAR BRANDING
 ========================================================== */
-
-.sidebar-app-title {
-    color: var(--accent);
-    font-size: 1.4rem;
+.sidebar-brand {
+    padding: 0 0 var(--space-sm) 0;
+    margin-bottom: var(--space-md);
+    border-bottom: 1px solid var(--glass-border);
+}
+.sidebar-brand-title {
+    font-size: 1.2rem;
     font-weight: 700;
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: .75rem;
+    margin: 0 0 4px 0;
+    letter-spacing: -0.01em;
 }
-
-.sidebar-app-title span {
+.sidebar-brand-title .brand-icon {
+    font-size: 1.3rem;
+}
+.sidebar-brand-version {
     background: var(--accent-soft-solid);
-    padding: 3px 10px;
-    border-radius: 999px;
+    color: var(--accent);
+    padding: 2px 10px;
+    border-radius: var(--radius-pill);
+    font-size: .68rem;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    letter-spacing: .04em;
+}
+.sidebar-brand-sub {
     font-size: .75rem;
     font-family: var(--font-mono);
+    margin: 0;
 }
 
-.sidebar-header-line {
-    border: none;
-    height: 1px;
-    background: linear-gradient(
-        to right,
-        var(--accent),
-        rgba(255,165,0,.25),
-        transparent
-    );
-    margin-bottom: 1rem;
+/* ==========================================================
+   CONNECTION STATUS BAR
+========================================================== */
+.status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: var(--space-md);
+    padding: 10px 16px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+}
+.status-bar-label {
+    font-family: var(--font-mono);
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: rgba(226, 232, 240, 0.6);
+}
+.status-badge {
+    padding: 4px 14px;
+    border-radius: var(--radius-pill);
+    font-weight: 600;
+    font-size: .78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-mono);
+}
+.status-badge .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+}
+.badge-connected {
+    background: var(--success-soft);
+    color: var(--success);
+    border: 1px solid rgba(52,211,153,.25);
+}
+.badge-connected .dot {
+    background: var(--success);
+    animation: pulseDot 2s ease-in-out infinite;
+}
+.badge-disconnected {
+    background: var(--danger-soft);
+    color: var(--danger);
+    border: 1px solid rgba(248,113,113,.25);
+}
+.badge-disconnected .dot {
+    background: var(--danger);
+}
+.status-bar-msg {
+    color: rgba(226, 232, 240, 0.7);
+    font-size: .82rem;
+    margin: 0;
+    margin-left: auto;
+}
+.status-bar-msg strong {
+    color: var(--accent);
+}
+
+@keyframes pulseDot {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(52,211,153,.45); }
+    50%      { box-shadow: 0 0 0 5px rgba(52,211,153,0); }
 }
 
 /* ==========================================================
    HERO SECTION
 ========================================================== */
-
-.hero-container {
-    background-color: var(--st-secondary-bg);
-    padding: 2.2rem 2.4rem;
-    border-radius: 16px;
-    border-left: 6px solid var(--accent);
-    box-shadow: 0 4px 12px rgba(255,165,0,.12);
+.hero-wrapper {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-xl);
+    position: relative;
+    overflow: hidden;
     height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
+/* Decorative gradient orb behind the hero */
+.hero-wrapper::before {
+    content: "";
+    position: absolute;
+    top: -40%;
+    right: -20%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(245,158,11,.12) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+.hero-wrapper::after {
+    content: "";
+    position: absolute;
+    bottom: -50%;
+    left: -10%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(0,161,224,.08) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+.hero-wrapper > * {
+    position: relative;
+    z-index: 1;
+}
+
 .hero-eyebrow {
     display: inline-flex;
     align-items: center;
     gap: 8px;
     font-family: var(--font-mono);
-    font-size: .78rem;
-    letter-spacing: .08em;
+    font-size: .72rem;
+    letter-spacing: .1em;
     text-transform: uppercase;
     color: var(--success);
-    margin-bottom: 14px;
+    margin-bottom: var(--space-md);
+    background: var(--success-soft);
+    padding: 5px 14px;
+    border-radius: var(--radius-pill);
+    width: fit-content;
 }
 .hero-eyebrow .live-dot {
-    width: 7px;
-    height: 7px;
+    width: 6px; height: 6px;
     border-radius: 50%;
     background: var(--success);
-    animation: pulseDot 1.8s infinite;
+    animation: pulseDot 2s ease-in-out infinite;
 }
+
 .hero-title {
     font-family: var(--font-body);
-    color: var(--accent);
-    font-size: 2.6rem;
-    font-weight: 800;
-    letter-spacing: -.01em;
-    line-height: 1.2;
-    margin-bottom: 10px;
+    font-size: 2.8rem;
+    font-weight: 900;
+    letter-spacing: -.03em;
+    line-height: 1.1;
+    margin: 0 0 var(--space-sm) 0;
 }
+.hero-title .title-cloud {
+    color: inherit;
+}
+.hero-title .title-accent {
+    background: linear-gradient(135deg, var(--accent) 0%, #F97316 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
 .hero-sub {
-    font-family: var(--font-body);
-    color: var(--st-fg);
-    font-size: 1.12rem;
-    line-height: 1.65;
-    max-width: 46ch;
-    margin-bottom: 14px;
+    color: rgba(226, 232, 240, 0.75);
+    font-size: 1.08rem;
+    line-height: 1.7;
+    max-width: 48ch;
+    margin: 0 0 var(--space-md) 0;
 }
-.hero-caption {
-    color: var(--st-muted);
-    font-size: 0.85rem;
+
+.hero-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.hero-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    font-size: .72rem;
     font-family: var(--font-mono);
+    font-weight: 500;
+    border: 1px solid var(--glass-border);
+    background: var(--surface-tint);
+    color: rgba(226, 232, 240, 0.7);
+    transition: border-color .2s ease, color .2s ease;
+}
+.hero-tag:hover {
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 /* ==========================================================
-   LIVE QUERY CONSOLE
+   STATS STRIP
 ========================================================== */
+.stats-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-md);
+    margin: var(--space-lg) 0;
+}
+.stat-item {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md) var(--space-md);
+    text-align: center;
+    transition: border-color .25s ease, transform .25s ease;
+}
+.stat-item:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+}
+.stat-value {
+    font-family: var(--font-body);
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, var(--accent) 0%, #F97316 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.stat-label {
+    font-family: var(--font-mono);
+    font-size: .7rem;
+    color: rgba(226, 232, 240, 0.6);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+@media (max-width: 768px) {
+    .stats-strip { grid-template-columns: repeat(2, 1fr); }
+}
 
-.console-panel {
-    background: var(--st-secondary-bg);
-    border: 1px solid var(--st-border);
-    border-radius: 14px;
-    overflow: hidden;
-    height: 100%;
-    box-shadow: 0 0 0 1px rgba(255,165,0,.05);
-    animation: consoleGlow 4s ease-in-out infinite;
-}
-@keyframes consoleGlow {
-    0%, 100% { box-shadow: 0 0 0 1px rgba(255,165,0,.05), 0 0 18px -6px rgba(255,165,0,.15); }
-    50%      { box-shadow: 0 0 0 1px rgba(0,161,224,.08), 0 0 22px -4px rgba(0,161,224,.22); }
-}
-.console-header {
+/* ==========================================================
+   SECTION HEADER
+========================================================== */
+.section-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
-    background: var(--st-bg);
-    border-bottom: 1px solid var(--st-border);
-}
-.console-dot {
-    width: 10px; height: 10px; border-radius: 50%;
-}
-.dot-red { background: #FF5F56; }
-.dot-yellow { background: #FFBD2E; }
-.dot-green { background: #27C93F; }
-.console-title {
-    margin-left: 6px;
-    font-family: var(--font-mono);
-    font-size: .78rem;
-    color: var(--st-muted);
-}
-.console-body {
-    padding: 18px 18px 20px;
-    min-height: 230px;
-    overflow-x: hidden;
-}
-.console-line {
-    font-family: var(--font-mono);
-    font-size: .92rem;
-    color: var(--st-fg);
-    white-space: nowrap;
-}
-.console-prompt {
-    color: var(--sf-blue);
-    margin-right: 8px;
-}
-.console-typed {
-    display: inline-block;
-    overflow: hidden;
-    white-space: nowrap;
-    width: 0;
-    border-right: 2px solid var(--accent);
-    vertical-align: bottom;
-    animation: typeQuery 14s infinite steps(46), blinkCursor .8s step-end infinite;
-}
-@keyframes typeQuery {
-    0%       { width: 0; }
-    26%      { width: 46ch; }
-    90%      { width: 46ch; }
-    96%,100% { width: 0; }
-}
-@keyframes blinkCursor { 50% { border-color: transparent; } }
-
-.console-meta {
-    font-family: var(--font-mono);
-    font-size: .78rem;
-    color: var(--success);
-    margin: 10px 0 12px;
-    opacity: 0;
-    animation: metaFade 14s infinite;
-}
-@keyframes metaFade {
-    0%, 30% { opacity: 0; transform: translateY(4px); }
-    35%     { opacity: 1; transform: translateY(0); }
-    88%     { opacity: 1; }
-    94%,100%{ opacity: 0; }
-}
-
-.console-table { font-family: var(--font-mono); font-size: .82rem; }
-.console-row {
-    display: flex;
-    justify-content: space-between;
     gap: 14px;
-    padding: 6px 4px;
-    border-bottom: 1px solid var(--st-border);
-    color: var(--st-fg);
-    opacity: 0;
-    transform: translateX(-8px);
+    margin: var(--space-xl) 0 var(--space-lg) 0;
 }
-.console-row-head {
-    color: var(--st-muted);
-    font-size: .72rem;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    opacity: 1 !important;
-    transform: none !important;
-    border-bottom: 1px solid var(--st-border);
+.section-icon {
+    width: 42px; height: 42px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    flex-shrink: 0;
 }
-.r1 { animation: rowIn1 14s infinite; }
-.r2 { animation: rowIn2 14s infinite; }
-.r3 { animation: rowIn3 14s infinite; }
-@keyframes rowIn1 {
-    0%,38%   { opacity: 0; transform: translateX(-8px); }
-    42%      { opacity: 1; transform: translateX(0); }
-    88%      { opacity: 1; }
-    94%,100% { opacity: 0; }
+.section-icon-amber {
+    background: var(--accent-soft);
+    border: 1px solid rgba(245,158,11,.20);
 }
-@keyframes rowIn2 {
-    0%,46%   { opacity: 0; transform: translateX(-8px); }
-    50%      { opacity: 1; transform: translateX(0); }
-    88%      { opacity: 1; }
-    94%,100% { opacity: 0; }
+.section-icon-blue {
+    background: var(--sf-blue-soft);
+    border: 1px solid rgba(0,161,224,.20);
 }
-@keyframes rowIn3 {
-    0%,54%   { opacity: 0; transform: translateX(-8px); }
-    58%      { opacity: 1; transform: translateX(0); }
-    88%      { opacity: 1; }
-    94%,100% { opacity: 0; }
+.section-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    margin: 0;
+    line-height: 1.2;
 }
-.editing {
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    padding: 5px 6px !important;
-    animation: rowIn3 14s infinite, editPulse 1.6s ease-in-out infinite;
-}
-@keyframes editPulse {
-    0%,100% { box-shadow: 0 0 0 0 rgba(255,165,0,.35); }
-    50%     { box-shadow: 0 0 0 4px rgba(255,165,0,0); }
-}
-.edit-pencil { color: var(--accent); margin-left: 6px; }
-
-@media (max-width: 900px) {
-    .console-line, .console-typed, .console-table { font-size: .66rem; }
-}
-
-.console-save {
-    font-family: var(--font-mono);
-    font-size: .8rem;
-    color: var(--success);
-    margin-top: 12px;
-    opacity: 0;
-    animation: saveIn 14s infinite;
-}
-@keyframes saveIn {
-    0%,64%   { opacity: 0; transform: translateY(4px); }
-    68%      { opacity: 1; transform: translateY(0); }
-    88%      { opacity: 1; }
-    94%,100% { opacity: 0; }
+.section-subtitle {
+    font-size: .82rem;
+    margin: 2px 0 0 0;
 }
 
 /* ==========================================================
    FEATURE CARDS
 ========================================================== */
-
-.main-card {
-    background-color: var(--st-secondary-bg);
-    padding: 24px;
-    border-radius: 16px;
-    border: 1px solid var(--st-border);
-    box-shadow: 0 4px 12px rgba(255,165,0,.12);
+.feature-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
     height: 100%;
-    transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    transition: transform .25s cubic-bezier(.4,0,.2,1),
+                border-color .25s ease,
+                box-shadow .25s ease;
     opacity: 0;
-    animation: fadeInUp .6s ease-out forwards;
+    animation: fadeInUp .5s ease-out forwards;
 }
-.main-card:hover {
+.feature-card:hover {
     transform: translateY(-4px);
+    border-color: rgba(245,158,11,.30);
+    box-shadow: 0 12px 32px rgba(245,158,11,.12);
+}
+.feature-card:hover .feature-icon-box {
+    transform: scale(1.08);
     border-color: var(--accent);
-    box-shadow: 0 10px 24px rgba(255,165,0,.25);
 }
-.main-card:hover .feature-icon {
-    transform: scale(1.12) rotate(-4deg);
+
+.feature-icon-box {
+    width: 48px; height: 48px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-bottom: var(--space-md);
+    border: 1px solid var(--glass-border);
+    transition: transform .3s ease, border-color .3s ease;
 }
-.main-card h4 {
-    color: var(--accent);
-    margin-top: 0;
+.icon-amber  { background: var(--accent-soft); }
+.icon-blue   { background: var(--sf-blue-soft); }
+.icon-green  { background: var(--success-soft); }
+.icon-purple { background: rgba(139,92,246,.20); border: 1px solid rgba(139,92,246,.30); }
+
+.feature-card h4 {
+    font-weight: 700;
+    font-size: 1.05rem;
+    margin: 0 0 8px 0;
+    letter-spacing: -.01em;
 }
-.main-card p {
-    color: var(--st-fg);
+.feature-card p {
+    color: rgba(226, 232, 240, 0.7);
+    font-size: .88rem;
     line-height: 1.65;
+    margin: 0;
 }
-.feature-icon {
-    font-size: 2.8rem;
-    display: block;
-    margin-bottom: 12px;
-    transition: transform .3s ease;
+.feature-card p strong {
+    color: #f8fafc;
+}
+.step-card p strong {
+    color: #f8fafc;
 }
 
 @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(16px); }
+    from { opacity: 0; transform: translateY(18px); }
     to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ==========================================================
-   STEP CARDS
+   STEP TIMELINE
 ========================================================== */
+.timeline {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-lg);
+    position: relative;
+}
+/* Connector line between steps */
+.timeline::before {
+    content: "";
+    position: absolute;
+    top: 32px;
+    left: calc(16.67% + 20px);
+    right: calc(16.67% + 20px);
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        var(--accent),
+        rgba(245,158,11,.30),
+        var(--accent)
+    );
+    z-index: 0;
+}
 
-.step-container {
-    background-color: var(--st-secondary-bg);
-    padding: 24px;
-    border-radius: 16px;
-    border-left: 6px solid var(--accent);
-    box-shadow: 0 2px 8px rgba(255,165,0,.08);
-    transition: box-shadow .25s ease, transform .25s ease;
+.step-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    position: relative;
+    z-index: 1;
+    transition: transform .25s ease, border-color .25s ease;
     opacity: 0;
-    animation: fadeInUp .6s ease-out forwards;
+    animation: fadeInUp .5s ease-out forwards;
 }
-.step-container:hover {
-    box-shadow: 0 8px 20px rgba(255,165,0,.15);
-    transform: translateY(-2px);
+.step-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(245,158,11,.25);
 }
-.step-container h4 {
-    color: var(--accent);
-}
-.step-container p {
-    color: var(--st-fg);
-    line-height: 1.65;
-}
+
 .step-number {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px; height: 22px;
+    width: 36px; height: 36px;
     border-radius: 50%;
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-family: var(--font-mono);
-    font-size: .75rem;
-    font-weight: 700;
-    margin-right: 8px;
-}
-
-/* ==========================================================
-   STATUS BADGES
-========================================================== */
-.status-badge {
-    padding: 6px 16px;
-    border-radius: 999px;
-    font-weight: 600;
-    font-size: .85rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--font-mono);
-}
-.status-badge .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-}
-.badge-connected {
-    background: var(--success-soft);
-    color: var(--success);
-    border: 1px solid rgba(46,217,163,.35);
-}
-.badge-connected .dot {
-    background: var(--success);
-    animation: pulseDot 1.8s infinite;
-}
-.badge-disconnected {
-    background: var(--danger-soft);
-    color: var(--danger);
-    border: 1px solid rgba(255,107,107,.35);
-}
-@keyframes pulseDot {
-    0%   { box-shadow: 0 0 0 0 rgba(46,217,163,.5); }
-    70%  { box-shadow: 0 0 0 7px rgba(46,217,163,0); }
-    100% { box-shadow: 0 0 0 0 rgba(46,217,163,0); }
-}
-
-/* ==========================================================
-   STATUS MESSAGE
-========================================================== */
-
-.status-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-}
-.status-label {
+    justify-content: center;
     font-family: var(--font-mono);
-    font-size: .86rem;
+    font-size: .85rem;
     font-weight: 700;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--sf-blue) !important;
+    margin-bottom: var(--space-md);
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 2px solid rgba(245,158,11,.30);
 }
-.status-container {
-    background-color: var(--st-secondary-bg);
-    border-left: 4px solid var(--accent);
-    padding: 10px 16px;
-    border-radius: 10px;
+.step-card h4 {
+    font-weight: 700;
+    font-size: 1rem;
+    margin: 0 0 8px 0;
 }
-.status-message {
-    color: var(--st-fg);
+.step-card p {
+    color: rgba(226, 232, 240, 0.7);
+    font-size: .86rem;
+    line-height: 1.65;
     margin: 0;
 }
-.status-message strong {
+.step-card p strong {
+    color: #f8fafc;
+}
+
+@media (max-width: 768px) {
+    .timeline { grid-template-columns: 1fr; }
+    .timeline::before { display: none; }
+}
+
+/* ==========================================================
+   TECH STACK BADGES
+========================================================== */
+.tech-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin: var(--space-lg) 0;
+}
+.tech-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    border-radius: var(--radius-pill);
+    font-size: .76rem;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    color: rgba(226, 232, 240, 0.7);
+    transition: border-color .2s ease, color .2s ease;
+}
+.tech-badge:hover {
+    border-color: var(--accent);
     color: var(--accent);
 }
 
 /* ==========================================================
-   DIVIDERS
+   FOOTER
 ========================================================== */
+.footer-bar {
+    margin-top: var(--space-2xl);
+    padding: var(--space-lg) 0 var(--space-md) 0;
+    border-top: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+.footer-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: .78rem;
+    font-family: var(--font-mono);
+}
+.footer-left .footer-dot {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: .5;
+}
+.footer-links {
+    display: flex;
+    gap: var(--space-md);
+}
+.footer-link {
+    font-size: .78rem;
+    font-family: var(--font-mono);
+    text-decoration: none;
+    transition: color .2s ease, opacity .2s ease;
+}
+.footer-link:hover {
+    color: var(--accent);
+    opacity: 1;
+}
 
-.custom-divider {
-    margin: 2rem 0;
+/* ==========================================================
+   DIVIDER
+========================================================== */
+.section-divider {
     border: none;
     height: 1px;
     background: linear-gradient(
-        to right,
-        var(--st-border),
-        rgba(128,128,128,0.5),
-        var(--st-border)
+        90deg,
+        transparent,
+        var(--glass-border),
+        rgba(245,158,11,.15),
+        var(--glass-border),
+        transparent
     );
+    margin: var(--space-xl) 0;
 }
 
-.stMarkdown hr.custom-divider,
-div[data-testid="stMarkdown"] hr.custom-divider {
-    margin: 2rem 0 !important;
+/* Override Streamlit's default hr handling */
+.stMarkdown hr.section-divider,
+div[data-testid="stMarkdown"] hr.section-divider {
+    margin: var(--space-xl) 0 !important;
     border: none !important;
-    height: 2px !important;
+    height: 1px !important;
     background: linear-gradient(
-        to right,
-        var(--st-border),
-        rgba(128,128,128,0.5),
-        var(--st-border)
+        90deg,
+        transparent,
+        var(--glass-border),
+        rgba(245,158,11,.15),
+        var(--glass-border),
+        transparent
     ) !important;
     opacity: 1 !important;
     visibility: visible !important;
@@ -539,196 +684,321 @@ div[data-testid="stMarkdown"] hr.custom-divider {
 }
 
 /* ==========================================================
+   MUTED TEXT — theme-adaptive (sits on the page's own
+   background, which switches with light/dark mode, so it
+   must inherit the current theme color rather than use a
+   fixed dark-mode gray)
+========================================================== */
+.sidebar-brand-sub,
+.section-subtitle,
+.footer-left,
+.footer-link {
+    color: inherit;
+    opacity: 0.6;
+}
+
+/* ==========================================================
+   LIGHT-MODE FIX: force readable text on dark-bg components
+   (these sit on --glass-bg, which stays dark regardless of
+   theme, so they always need light text — unlike the muted
+   text block above)
+========================================================== */
+.hero-wrapper,
+.feature-card,
+.step-card,
+.stat-item,
+.status-bar {
+    color: #e2e8f0;
+}
+.hero-sub,
+.feature-card p,
+.step-card p,
+.stat-label,
+.status-bar-msg,
+.status-bar-label {
+    color: rgba(226, 232, 240, 0.7) !important;
+}
+.feature-card h4,
+.step-card h4 {
+    color: #f1f5f9;
+}
+.hero-eyebrow {
+    color: var(--success);
+}
+.hero-tags .hero-tag {
+    color: rgba(226, 232, 240, 0.7);
+}
+.hero-tags .hero-tag:hover {
+    color: var(--accent);
+}
+
+/* ==========================================================
    ACCESSIBILITY: respect reduced-motion
 ========================================================== */
 @media (prefers-reduced-motion: reduce) {
-    * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
-    .console-typed { width: 46ch !important; border-right: none !important; }
-    .console-meta, .console-row, .console-save { opacity: 1 !important; transform: none !important; }
-    .main-card, .step-container { opacity: 1 !important; }
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+    }
+    .feature-card, .step-card, .stat-item { opacity: 1 !important; transform: none !important; }
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-#------------------------------------------------------------
-# HEADER / CONNECTION STATUS BADGE
-#-----------------------------------------------------------
-
+# ============================================================
+# Connection state
+# ============================================================
 is_connected = "sf" in st.session_state and st.session_state.get("config_ok")
 
 if is_connected:
-    badge_html = '<span class="status-badge badge-connected"><span class="dot"></span>Connected</span>'
-    message_text = 'Your session is active. Head to the <strong>Salesforce SOQL Editor</strong> to query and manage your data.'
+    badge_html = (
+        '<span class="status-badge badge-connected">'
+        '<span class="dot"></span>Connected</span>'
+    )
+    status_msg = (
+        'Your session is active. Head to the '
+        '<strong>Salesforce SOQL Editor</strong> to query and manage your data.'
+    )
 else:
-    badge_html = '<span class="status-badge badge-disconnected"><span class="dot" style="background: var(--danger);"></span>Not Connected</span>'
-    message_text = 'Configure your Salesforce connection from the sidebar to unlock every page.'
+    badge_html = (
+        '<span class="status-badge badge-disconnected">'
+        '<span class="dot"></span>Not Connected</span>'
+    )
+    status_msg = (
+        'Configure your Salesforce connection from the sidebar to unlock every page.'
+    )
 
+# ============================================================
+# SIDEBAR: Branding
+# ============================================================
+with st.sidebar:
+    st.markdown("""
+    <div class="sidebar-brand">
+        <div class="sidebar-brand-title">
+            <span class="brand-icon">☁️</span> SF Query Studio
+            <span class="sidebar-brand-version">v2.0</span>
+        </div>
+        <p class="sidebar-brand-sub">Salesforce Data Workbench</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ============================================================
+# STATUS BAR
+# ============================================================
 st.markdown(f"""
-<div class="status-header">
-    <span class="status-label">ORG STATUS</span>
+<div class="status-bar">
+    <span class="status-bar-label">Org Status</span>
     {badge_html}
+    <p class="status-bar-msg">{status_msg}</p>
 </div>
 """, unsafe_allow_html=True)
 
 # ============================================================
-# SIDEBAR: Custom Header
-# ============================================================
-with st.sidebar:
-    st.markdown("""
-    <div class="sidebar-app-title">
-        ⚡ Salesforce <span>v2.0</span>
-    </div>
-    <hr class="sidebar-header-line">
-    """, unsafe_allow_html=True)
-
-# ============================================================
 # HERO SECTION
 # ============================================================
-hero_left, hero_right = st.columns([1.15, 1], gap="medium")
-
-with hero_left:
-    st.markdown("""
-    <div class="hero-container">
-        <div class="hero-eyebrow"><span class="live-dot"></span> Streamlit · simple-salesforce · REST API</div>
-        <div class="hero-title">☁️ SF Query Studio</div>
-        <div class="hero-sub">
-            Query, browse, and edit your Salesforce data straight from your browser —
-            no dev console, no separate SOQL tool, no context switching.
-        </div>
-        <div class="hero-caption">Built for admins and developers who live in their org every day.</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with hero_right:
-    st.markdown("""
-    <div class="console-panel">
-        <div class="console-header">
-            <span class="console-dot dot-red"></span>
-            <span class="console-dot dot-yellow"></span>
-            <span class="console-dot dot-green"></span>
-            <span class="console-title">SOQL Editor — live preview</span>
-        </div>
-        <div class="console-body">
-            <div class="console-line">
-                <span class="console-prompt">&gt;</span><span class="console-typed">SELECT Id, Name, Industry FROM Account LIMIT 5</span>
-            </div>
-            <div class="console-meta">🟢 Query executed in 189ms · 3 of 5 rows shown</div>
-            <div class="console-table">
-                <div class="console-row console-row-head"><span>Name</span><span>Industry</span></div>
-                <div class="console-row r1"><span>Acme Corporation</span><span>Manufacturing</span></div>
-                <div class="console-row r2"><span>Global Logistics Inc.</span><span>Transportation</span></div>
-                <div class="console-row r3 editing"><span>Pinnacle Health Group<span class="edit-pencil">✎</span></span><span>Healthcare</span></div>
-            </div>
-            <div class="console-save">✅ Record updated in Salesforce</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
-
-# ============================================================
-# FEATURE CARDS
-# ============================================================
-col1, col2, col3 = st.columns(3, gap="medium")
-
-with col1:
-    st.markdown("""
-    <div class="main-card" style="animation-delay:.05s;">
-        <span class="feature-icon">🔍</span>
-        <h4>Run SOQL Queries</h4>
-        <p>
-            Write any <strong>SELECT</strong> query against Salesforce objects.
-            Results are displayed instantly in a beautiful, sortable table.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown("""
-    <div class="main-card" style="animation-delay:.18s;">
-        <span class="feature-icon">📋</span>
-        <h4>Interactive Results</h4>
-        <p>
-            View your data with <strong>scrollable tables</strong>, column sorting,
-            and one-click CSV export for easy analysis.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col3:
-    st.markdown("""
-    <div class="main-card" style="animation-delay:.31s;">
-        <span class="feature-icon">✏️</span>
-        <h4>Inline DML</h4>
-        <p>
-            Edit records directly in the table. Perform <strong>Insert, Update,
-            and Delete</strong> operations with a simple checkbox and save button.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
-
-# ============================================================
-# HOW TO USE
-# ============================================================
 st.markdown("""
-<h2 style="
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: 1.5rem;
-    margin-bottom: 1rem;
-">
-    <span style="font-size: 2rem;">🚀</span>
-    <span style="
-        background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        font-size: 2rem;
-        font-weight: 700;
-    ">
-        How to Get Started
-    </span>
-</h2>
+<div class="hero-wrapper">
+    <div class="hero-eyebrow">
+        <span class="live-dot"></span> Streamlit &middot; simple-salesforce &middot; REST API
+    </div>
+    <h1 class="hero-title">
+        <span class="title-cloud">☁️ </span><span class="title-accent">SF Query Studio</span>
+    </h1>
+    <p class="hero-sub">
+        Query, browse, and edit your Salesforce data straight from your
+        browser &mdash; no dev console, no separate SOQL tool, no context switching.
+    </p>
+    <div class="hero-tags">
+        <span class="hero-tag">🔍 SOQL Queries</span>
+        <span class="hero-tag">✏️ Inline Editing</span>
+        <span class="hero-tag">📊 CSV Export</span>
+        <span class="hero-tag">🔒 Secure Auth</span>
+    </div>
+</div>
 """, unsafe_allow_html=True)
 
-left_step, right_step = st.columns(2, gap="medium")
-
-with left_step:
-    st.markdown("""
-    <div class="step-container" style="border-left-color: #FFA500; animation-delay:.05s;">
-        <h4><span class="step-number">1</span>Configuration</h4>
-        <p>
-            Open the <strong>Configuration</strong> page from the sidebar.
-            Enter your Salesforce username, password, and security token,
-            then click <strong>"Test Connection"</strong>.
-        </p>
+# ============================================================
+# STATS STRIP
+# ============================================================
+st.markdown("""
+<div class="stats-strip">
+    <div class="stat-item">
+        <div class="stat-value">SOQL</div>
+        <div class="stat-label">Query Engine</div>
     </div>
-    """, unsafe_allow_html=True)
-
-with right_step:
-    st.markdown("""
-    <div class="step-container" style="border-left-color: #FF8C00; animation-delay:.18s;">
-        <h4><span class="step-number">2</span>Query &amp; Edit</h4>
-        <p>
-            Once connected, open the <strong>Salesforce SOQL Editor</strong> page.
-            Run queries, review results, and edit or delete records
-            directly in the interactive data editor.
-        </p>
+    <div class="stat-item">
+        <div class="stat-value">DML</div>
+        <div class="stat-label">Insert &middot; Update &middot; Delete</div>
     </div>
-    """, unsafe_allow_html=True)
+    <div class="stat-item">
+        <div class="stat-value">CSV</div>
+        <div class="stat-label">One-Click Export</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">REST</div>
+        <div class="stat-label">Salesforce API</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
+st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
 # ============================================================
-# FOOTER / CONNECTION STATUS MESSAGE
+# FEATURES SECTION
 # ============================================================
-
-st.markdown(f"""
-    <div class="status-container" style="flex: 1; margin: 0;">
-        <p class="status-message">{message_text}</p>
+st.markdown("""
+<div class="section-header">
+    <div class="section-icon section-icon-amber">⚡</div>
+    <div>
+        <div class="section-title">Core Features</div>
+        <p class="section-subtitle">Everything you need to work with your Salesforce data</p>
     </div>
+</div>
+""", unsafe_allow_html=True)
+
+FEATURES = [
+    {
+        "icon_class": "icon-amber",
+        "icon": "🔍",
+        "title": "Run SOQL Queries",
+        "body": (
+            "Write any <strong>SELECT</strong> query against standard and custom "
+            "Salesforce objects. Results render instantly in sortable, paginated tables."
+        ),
+    },
+    {
+        "icon_class": "icon-blue",
+        "icon": "📋",
+        "title": "Interactive Results",
+        "body": (
+            "Explore data with <strong>scrollable tables</strong>, column sorting, "
+            "and one-click CSV export for quick downstream analysis."
+        ),
+    },
+    {
+        "icon_class": "icon-green",
+        "icon": "✏️",
+        "title": "Inline DML",
+        "body": (
+            "Edit records directly in the table. Perform <strong>Insert, Update, "
+            "and Delete</strong> operations with a checkbox and save button."
+        ),
+    },
+    {
+        "icon_class": "icon-purple",
+        "icon": "🔒",
+        "title": "Secure Connection",
+        "body": (
+            "Authenticate with <strong>username, password &amp; security token</strong>. "
+            "Credentials stay in your session &mdash; nothing is stored to disk."
+        ),
+    },
+]
+
+feature_cols = st.columns(len(FEATURES), gap="medium")
+for col, feature, delay in zip(feature_cols, FEATURES, (0.05, 0.12, 0.19, 0.26)):
+    with col:
+        st.markdown(f"""
+        <div class="feature-card" style="animation-delay:{delay}s;">
+            <div class="feature-icon-box {feature['icon_class']}">{feature['icon']}</div>
+            <h4>{feature['title']}</h4>
+            <p>{feature['body']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+
+# ============================================================
+# GETTING STARTED — 3-STEP TIMELINE
+# ============================================================
+st.markdown("""
+<div class="section-header">
+    <div class="section-icon section-icon-blue">🚀</div>
+    <div>
+        <div class="section-title">Get Started in Minutes</div>
+        <p class="section-subtitle">Three simple steps to query and manage your org</p>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+STEPS = [
+    {
+        "title": "Configure",
+        "body": (
+            "Open the <strong>Configuration</strong> page. Enter your Salesforce "
+            "username, password, and security token, then click "
+            '<strong>"Test Connection"</strong>.'
+        ),
+    },
+    {
+        "title": "Query",
+        "body": (
+            "Head to the <strong>SOQL Editor</strong>. Write your query, hit Run, "
+            "and watch results populate in a live, interactive data grid."
+        ),
+    },
+    {
+        "title": "Edit &amp; Export",
+        "body": (
+            "Modify records inline or export to <strong>CSV</strong>. Changes "
+            "save directly to Salesforce &mdash; no extra tools needed."
+        ),
+    },
+]
+
+step_cols = st.columns(len(STEPS), gap="medium")
+for i, (col, step, delay) in enumerate(zip(step_cols, STEPS, (0.05, 0.15, 0.25)), start=1):
+    with col:
+        st.markdown(f"""
+        <div class="step-card" style="animation-delay:{delay}s;">
+            <div class="step-number">{i}</div>
+            <h4>{step['title']}</h4>
+            <p>{step['body']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+
+# ============================================================
+# TECH STACK
+# ============================================================
+st.markdown("""
+<div style="text-align:center; margin-bottom: var(--space-sm);">
+    <span style="
+        font-family: var(--font-mono);
+        font-size: .72rem;
+        opacity: .55;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+    ">Built With</span>
+</div>
+<div class="tech-row">
+    <span class="tech-badge">🐍 Python</span>
+    <span class="tech-badge">🎈 Streamlit</span>
+    <span class="tech-badge">☁️ simple-salesforce</span>
+    <span class="tech-badge">🔗 Salesforce REST API</span>
+    <span class="tech-badge">🐼 Pandas</span>
+</div>
+""", unsafe_allow_html=True)
+
+# ============================================================
+# FOOTER
+# ============================================================
+st.markdown("""
+<footer class="footer-bar">
+    <div class="footer-left">
+        <span>☁️ SF Query Studio</span>
+        <span class="footer-dot"></span>
+        <span>v2.0</span>
+        <span class="footer-dot"></span>
+        <span>MIT License</span>
+    </div>
+    <div class="footer-links">
+        <a class="footer-link" href="https://github.com/abuawaish/salesforce_db_app" target="_blank" rel="noopener">GitHub</a>
+        <a class="footer-link" href="https://github.com/abuawaish/salesforce_db_app#readme" target="_blank" rel="noopener">Docs</a>
+        <a class="footer-link" href="https://github.com/abuawaish/salesforce_db_app/issues/new" target="_blank" rel="noopener">Report Bug</a>
+    </div>
+</footer>
 """, unsafe_allow_html=True)
