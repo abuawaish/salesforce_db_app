@@ -31,6 +31,11 @@ st.set_page_config(
 # ============================================================
 st.markdown("""
 <style>
+
+html {
+    font-size: 90%;
+}
+
 /* ==========================================================
    GLOBAL VARIABLES
 ========================================================== */
@@ -178,13 +183,20 @@ a:focus-visible {
 ========================================================== */
 .status-bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    gap: 10px 12px;
     margin-bottom: var(--space-md);
     padding: 10px 16px;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-md);
+}
+.status-bar-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
 }
 .status-bar-label {
     font-family: var(--font-mono);
@@ -193,6 +205,7 @@ a:focus-visible {
     letter-spacing: .1em;
     text-transform: uppercase;
     color: rgba(226, 232, 240, 0.6);
+    white-space: nowrap;
 }
 .status-badge {
     padding: 4px 14px;
@@ -203,9 +216,12 @@ a:focus-visible {
     align-items: center;
     gap: 7px;
     font-family: var(--font-mono);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 .status-badge .dot {
     width: 7px; height: 7px; border-radius: 50%;
+    flex-shrink: 0;
 }
 .badge-connected {
     background: var(--success-soft);
@@ -227,11 +243,32 @@ a:focus-visible {
 .status-bar-msg {
     color: rgba(226, 232, 240, 0.7);
     font-size: .82rem;
+    line-height: 1.5;
     margin: 0;
     margin-left: auto;
+    flex: 1 1 260px;
+    min-width: 0;
 }
 .status-bar-msg strong {
     color: var(--accent);
+}
+
+/* On narrow screens: keep label + badge together on their own
+   row (never split mid-word), drop the message to a full-width
+   row below with a subtle divider instead of squeezing it in */
+@media (max-width: 560px) {
+    .status-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 16px;
+    }
+    .status-bar-msg {
+        margin-left: 0;
+        flex-basis: 100%;
+        padding-top: 10px;
+        border-top: 1px solid var(--glass-border);
+    }
 }
 
 @keyframes pulseDot {
@@ -282,6 +319,12 @@ a:focus-visible {
     z-index: 1;
 }
 
+@media (max-width: 640px) {
+    .hero-wrapper {
+        padding: var(--space-lg);
+    }
+}
+
 .hero-eyebrow {
     display: inline-flex;
     align-items: center;
@@ -306,7 +349,7 @@ a:focus-visible {
 
 .hero-title {
     font-family: var(--font-body);
-    font-size: 2.8rem;
+    font-size: clamp(1.9rem, 7vw, 2.8rem);
     font-weight: 900;
     letter-spacing: -.03em;
     line-height: 1.1;
@@ -404,7 +447,7 @@ a:focus-visible {
     display: flex;
     align-items: center;
     gap: 14px;
-    margin: var(--space-xl) 0 var(--space-lg) 0;
+    margin: var(--space-sm) 0 var(--space-lg) 0;
 }
 .section-icon {
     width: 42px; height: 42px;
@@ -660,13 +703,13 @@ a:focus-visible {
         var(--glass-border),
         transparent
     );
-    margin: var(--space-xl) 0;
+    margin: var(--space-xl) 0 var(--space-md) 0;
 }
 
 /* Override Streamlit's default hr handling */
 .stMarkdown hr.section-divider,
 div[data-testid="stMarkdown"] hr.section-divider {
-    margin: var(--space-xl) 0 !important;
+    margin: var(--space-xl) 0 var(--space-md) 0 !important;
     border: none !important;
     height: 1px !important;
     background: linear-gradient(
@@ -721,6 +764,38 @@ div[data-testid="stMarkdown"] hr.section-divider {
 .feature-card h4,
 .step-card h4 {
     color: #f1f5f9;
+}
+
+/* Streamlit auto-attaches a heading anchor-link icon to every h1-h6,
+   including our card h4 titles. It follows the page's theme text color
+   by default, but these cards stay dark in both themes — so in light
+   mode the icon renders dark-on-dark and is nearly invisible. Force it
+   to match the card's fixed light text instead. */
+.feature-card [data-testid="stHeaderActionElements"],
+.step-card [data-testid="stHeaderActionElements"],
+.feature-card h4 a,
+.step-card h4 a {
+    color: rgba(226, 232, 240, 0.75) !important;
+}
+.feature-card [data-testid="stHeaderActionElements"] svg,
+.step-card [data-testid="stHeaderActionElements"] svg,
+.feature-card h4 a svg,
+.step-card h4 a svg {
+    fill: rgba(226, 232, 240, 0.75) !important;
+    stroke: rgba(226, 232, 240, 0.75) !important;
+}
+.feature-card [data-testid="stHeaderActionElements"]:hover,
+.step-card [data-testid="stHeaderActionElements"]:hover,
+.feature-card h4 a:hover,
+.step-card h4 a:hover {
+    color: var(--accent) !important;
+}
+.feature-card [data-testid="stHeaderActionElements"]:hover svg,
+.step-card [data-testid="stHeaderActionElements"]:hover svg,
+.feature-card h4 a:hover svg,
+.step-card h4 a:hover svg {
+    fill: var(--accent) !important;
+    stroke: var(--accent) !important;
 }
 .hero-eyebrow {
     color: var(--success);
@@ -789,8 +864,10 @@ with st.sidebar:
 # ============================================================
 st.markdown(f"""
 <div class="status-bar">
-    <span class="status-bar-label">Org Status</span>
-    {badge_html}
+    <div class="status-bar-top">
+        <span class="status-bar-label">Org Status</span>
+        {badge_html}
+    </div>
     <p class="status-bar-msg">{status_msg}</p>
 </div>
 """, unsafe_allow_html=True)
