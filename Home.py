@@ -26,6 +26,15 @@ st.set_page_config(
     }
 )
 
+# ========================================================== 
+# Load Google Fonts
+# ========================================================= 
+st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+""", unsafe_allow_html=True)
+
 # ============================================================
 # CSS — Design System
 # ============================================================
@@ -84,11 +93,6 @@ html {
     --radius-xl: 20px;
     --radius-pill: 999px;
 }
-
-/* ==========================================================
-   LOAD GOOGLE FONTS
-========================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ==========================================================
    GLOBAL RESETS & TYPOGRAPHY
@@ -204,7 +208,6 @@ a:focus-visible {
     font-weight: 600;
     letter-spacing: .1em;
     text-transform: uppercase;
-    color: rgba(226, 232, 240, 0.6);
     white-space: nowrap;
 }
 .status-badge {
@@ -366,7 +369,6 @@ a:focus-visible {
 }
 
 .hero-sub {
-    color: rgba(226, 232, 240, 0.75);
     font-size: 1.08rem;
     line-height: 1.7;
     max-width: 48ch;
@@ -432,7 +434,6 @@ a:focus-visible {
 .stat-label {
     font-family: var(--font-mono);
     font-size: .7rem;
-    color: rgba(226, 232, 240, 0.6);
     text-transform: uppercase;
     letter-spacing: .08em;
 }
@@ -531,9 +532,7 @@ a:focus-visible {
     line-height: 1.65;
     margin: 0;
 }
-.feature-card p strong {
-    color: #f8fafc;
-}
+.feature-card p strong,
 .step-card p strong {
     color: #f8fafc;
 }
@@ -609,9 +608,6 @@ a:focus-visible {
     font-size: .86rem;
     line-height: 1.65;
     margin: 0;
-}
-.step-card p strong {
-    color: #f8fafc;
 }
 
 @media (max-width: 768px) {
@@ -741,7 +737,7 @@ div[data-testid="stMarkdown"] hr.section-divider {
 }
 
 /* ==========================================================
-   LIGHT-MODE FIX: force readable text on dark-bg components
+   LIGHT-MODE: force readable text on dark-bg components
    (these sit on --glass-bg, which stays dark regardless of
    theme, so they always need light text — unlike the muted
    text block above)
@@ -766,11 +762,13 @@ div[data-testid="stMarkdown"] hr.section-divider {
     color: #f1f5f9;
 }
 
-/* Streamlit auto-attaches a heading anchor-link icon to every h1-h6,
+/* ====================================================================== 
+   Streamlit auto-attaches a heading anchor-link icon to every h1-h6,
    including our card h4 titles. It follows the page's theme text color
    by default, but these cards stay dark in both themes — so in light
    mode the icon renders dark-on-dark and is nearly invisible. Force it
-   to match the card's fixed light text instead. */
+   to match the card's fixed light text instead. 
+========================================================================= */
 .feature-card [data-testid="stHeaderActionElements"],
 .step-card [data-testid="stHeaderActionElements"],
 .feature-card h4 a,
@@ -797,14 +795,32 @@ div[data-testid="stMarkdown"] hr.section-divider {
     fill: var(--accent) !important;
     stroke: var(--accent) !important;
 }
-.hero-eyebrow {
-    color: var(--success);
+
+.hero-wrapper [data-testid="stHeaderActionElements"],
+.hero-title [data-testid="stHeaderActionElements"],
+.hero-wrapper h4 a,
+.hero-title h4 a {
+    color: rgba(226, 232, 240, 0.75) !important;
 }
-.hero-tags .hero-tag {
-    color: rgba(226, 232, 240, 0.7);
+.hero-wrapper [data-testid="stHeaderActionElements"] svg,
+.hero-title [data-testid="stHeaderActionElements"] svg,
+.hero-wrapper h4 a svg,
+.hero-title h4 a svg {
+    fill: rgba(226, 232, 240, 0.75) !important;
+    stroke: rgba(226, 232, 240, 0.75) !important;
 }
-.hero-tags .hero-tag:hover {
-    color: var(--accent);
+.hero-wrapper [data-testid="stHeaderActionElements"]:hover,
+.hero-title [data-testid="stHeaderActionElements"]:hover,
+.hero-wrapper h4 a:hover,
+.hero-title h4 a:hover {
+    color: var(--accent) !important;
+}
+.hero-wrapper [data-testid="stHeaderActionElements"]:hover svg,
+.hero-title [data-testid="stHeaderActionElements"]:hover svg,
+.hero-wrapper h4 a:hover svg,
+.hero-title h4 a:hover svg {
+    fill: var(--accent) !important;
+    stroke: var(--accent) !important;
 }
 
 /* ==========================================================
@@ -1053,10 +1069,13 @@ st.markdown("""
 </div>
 <div class="tech-row">
     <span class="tech-badge">🐍 Python</span>
-    <span class="tech-badge">🎈 Streamlit</span>
+    <span class="tech-badge">⚡ Streamlit</span>
     <span class="tech-badge">☁️ simple-salesforce</span>
     <span class="tech-badge">🔗 Salesforce REST API</span>
     <span class="tech-badge">🐼 Pandas</span>
+    <span class="tech-badge">📊 Plotly</span>
+    <span class="tech-badge">🌐 Zeep</span>
+    <span class="tech-badge">📡 Requests</span>
 </div>
 """, unsafe_allow_html=True)
 
