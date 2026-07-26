@@ -382,7 +382,7 @@ def _build_user_from_identity(identity_data: dict) -> dict:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def fetch_session_info(_sf):
+def fetch_session_info(_sf, session_key: str):
     info = {
         "api_version": "Unknown",
         "endpoint": "N/A",
@@ -574,7 +574,8 @@ with btn_col1:
 st.divider()
 
 with st.spinner("Fetching session information from Salesforce..."):
-    info = fetch_session_info(sf)
+    session_key = f"{getattr(sf, 'sf_instance', '')}:{getattr(sf, 'session_id', '')}"
+    info = fetch_session_info(sf, session_key)
 
 if info.get("warnings"):
     with st.expander(f"⚠️ Warnings ({len(info['warnings'])})", expanded=False):

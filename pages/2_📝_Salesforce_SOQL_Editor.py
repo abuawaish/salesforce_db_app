@@ -606,7 +606,6 @@ def prepare_bulk_records_from_csv(df: pd.DataFrame, operation: str):
             for field, value in row.items():
                 if field != "Id":
                     record[field] = value
-
             records.append(record)
 
     elif operation == "delete":
