@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import re
+from openai import OpenAI
 
 # ------------------------------------------------------------
 # Page Configuration
@@ -79,6 +80,65 @@ def get_object_field_metadata(object_name: str):
     except Exception:
         return {}
 
+def generate_soql_from_prompt(object_name: str, user_request: str) -> str:
+    """
+    Turns a plain-English request into a SOQL SELECT query, grounded in the
+    object's REAL field metadata so the model can't invent field names.
+    Returns the raw query string. Never executes anything — caller decides
+    what happens with the result.
+    """
+
+    if object_name != "Select an object...":
+        selected_object_nl = object_name
+        # Uses session-state cache — instant if already described on Field Analysis page
+        # Field metadata (not just names) so the model sees each field's TYPE too —
+        # helps it pick sensible fields/operators instead of guessing blind.
+        field_metadata = get_object_field_metadata(selected_object_nl)
+        field_list = "\n".join(
+            f"- {name} ({meta.get('type')})"
+            for name, meta in field_metadata.items()
+        )
+    else:
+        selected_object_nl = None
+        field_list = ""
+
+    if not selected_object_nl:
+        st.toast("❌ Please select a valid object.")
+    else:
+
+        system_prompt = f"""You write Salesforce SOQL queries. You will be given a plain-English
+                            request and a list of REAL fields that exist on the {selected_object_nl} object.
+
+                            Rules:
+                            - Output ONLY the SOQL query. No explanation, no markdown, no code fences.
+                            - The query MUST start with SELECT. Never generate INSERT, UPDATE, DELETE, or UPSERT.
+                            - Only use field names from the list below — never invent a field name.
+                            - Always query FROM {selected_object_nl}.
+                            - If the request is ambiguous, make a reasonable assumption and keep the query simple.
+
+                            Available fields on {selected_object_nl}:
+                            {field_list}
+                        """
+
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            max_completion_tokens=300,
+            temperature=0,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_request},
+            ],
+        )
+        query = response.choices[0].message.content.strip()
+
+        # Defense-in-depth: never trust the model's promise alone.
+        # Reject anything that isn't unambiguously a read-only SELECT.
+        first_word = query.strip().split(None, 1)[0].upper() if query.strip() else ""
+        if first_word != "SELECT":
+            raise ValueError(f"Generated output wasn't a SELECT query: {query[:80]!r}")
+
+        return query
 
 def clean_where_clause(clause: str) -> str:
     if not clause:
@@ -606,6 +666,7 @@ def prepare_bulk_records_from_csv(df: pd.DataFrame, operation: str):
             for field, value in row.items():
                 if field != "Id":
                     record[field] = value
+
             records.append(record)
 
     elif operation == "delete":
@@ -728,6 +789,42 @@ with btn_col2:
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
         st.toast("Cache cleared! Data will refresh on next load.", icon="✅")
+
+st.divider()
+
+# ============================================================
+# SECTION 0: Ask in Plain English (optional, generates — never runs)
+# ============================================================
+st.subheader("✨ Ask in Plain English (optional)")
+
+nl_col, obj_col = st.columns([3, 1])
+with nl_col:
+    nl_request = st.text_input(
+        "Describe what you want",
+        placeholder="e.g. accounts with no activity in the last 90 days",
+        key="nl_query_input",
+    )
+with obj_col:
+    object_options = ["Select an object..."] + all_objects
+    selected_object = st.selectbox("Object", options=object_options, index=0, key="nl_object_select")
+
+if st.button("🪄 Generate SOQL", type="secondary"):
+    if not nl_request.strip():
+        show_temporary_message("Describe what you're looking for first.", level="warning")
+    else:
+        try:
+            with st.spinner("Generating query…"):
+                generated = generate_soql_from_prompt(selected_object, nl_request)
+
+            if generated is not None:
+                st.session_state.soql_query_input = generated
+                show_temporary_message("Query generated — review it below, then click Run Query.", level="success")
+
+        except ValueError as e:
+            show_temporary_message(f"Generated query failed safety check: {e}", level="error")
+        except Exception as e:
+            show_temporary_message("Couldn't generate a query.", level="error")
+            show_error("Generation failed", e)
 
 st.divider()
 
