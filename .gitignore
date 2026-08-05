@@ -3,3 +3,4 @@
 __pycache__/
 requirements.txt
 .streamlit/secrets.toml
+uv.lock
