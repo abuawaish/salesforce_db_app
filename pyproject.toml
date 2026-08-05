@@ -15,3 +15,7 @@ dependencies = [
 # You can leave this section here for future local-only tools (like pytest or ruff)
 [dependency-groups]
 dev = []
+
+# Tells Poetry not to install the project itself as a package
+[tool.poetry]
+package-mode = false
