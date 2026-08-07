@@ -12,6 +12,7 @@ This app provides a clean, dark-themed interface for:
 
 - Connecting to a Salesforce org using username, password, and optional security token.
 - Running ad hoc `SELECT` SOQL queries and viewing results in an interactive table.
+- Using the new “Ask in Plain English” helper to turn natural-language requests into SOQL queries.
 - Downloading query results as CSV.
 - Loading Salesforce records for inline editing, insert, update, and delete operations.
 - Exploring Salesforce object metadata, field counts, relationships, picklists, and field type distributions.
@@ -33,6 +34,7 @@ Found under the `Configuration` page:
 Found under the `Salesforce SOQL Editor` page:
 
 - Write any valid `SELECT` SOQL query.
+- Use the new “Ask in Plain English” feature to describe the data you want in plain language and generate or refine a SOQL query.
 - Execute the query and show response data in a sortable Streamlit table.
 - Support for relationship fields and child relationship expansion in query results.
 - Download query results as a CSV file.
@@ -114,6 +116,7 @@ The app relies on the following packages:
 - `plotly`
 - `requests`
 - `zeep`
+- `openai`
 
 ## Installation
 
@@ -180,21 +183,6 @@ You can try the hosted version of this app here:
 
 Note: The deployed demo may not include a working Salesforce connection for security reasons — use your own credentials via the `Configuration` page when running locally or in a trusted environment.
 
-## Screenshots
-
-A quick visual tour of the app (click to expand):
-
-<p align="center">
-	<img src="assets/screenshots/home_page.png" alt="Home" width="32%" style="margin:8px;" />
-	<img src="assets/screenshots/connection_page.png" alt="Connection" width="32%" style="margin:8px;" />
-	<img src="assets/screenshots/SOQL_page_1.png" alt="SOQL Editor" width="32%" style="margin:8px;" />
-</p>
-
-<p align="center">
-	<img src="assets/screenshots/SOQL_page_2.png" alt="SOQL Editor - Results" width="32%" style="margin:8px;" />
-	<img src="assets/screenshots/field_analysis_page_1.png" alt="Field Analysis 1" width="32%" style="margin:8px;" />
-	<img src="assets/screenshots/field_analysis_page_2.png" alt="Field Analysis 2" width="32%" style="margin:8px;" />
-</p>
 
 
 ## Quick Start
