@@ -103,8 +103,9 @@ The project is organized around a main app entry point, a small set of shared ut
 - `pages/4_📦_Object_Manager.py` - Object and field management experience for creating, editing, and configuring custom metadata.
 - `pages/5_👤_Session_Info.py` - Session diagnostics page showing the active connection details and org information.
 - `requirements.txt` - Python dependencies required to run the app.
-- `pyproject.toml` - Project metadata and dependency group configuration.
-- `assets/` - Screenshots and static assets used in the documentation and UI.
+- `.gitignore` - Lists files and folders that Git should ignore, such as virtual environments, local secrets, and editor-specific artifacts.
+- `LICENSE` - Contains the open-source license terms for the project.
+- `README.md` - Provides project overview, setup instructions, usage guidance, and feature documentation.
 
 ## Dependencies
 
