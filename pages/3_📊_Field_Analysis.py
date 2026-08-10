@@ -34,13 +34,13 @@ st.caption("Inspect Salesforce object field metadata and relationships.")
 
 btn_spacer, btn_col1, btn_col2 = st.columns([4, 1, 1])
 with btn_col1:
-    if st.button("🔄 Refresh Data", width="stretch", type="secondary"):
+    if st.button("🔄 Refresh Data", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
         st.rerun()
 with btn_col2:
-    if st.button("🗑️ Clear Cache", width="stretch", type="secondary"):
+    if st.button("🗑️ Clear Cache", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)

@@ -820,13 +820,13 @@ st.caption("Create custom objects, manage custom fields, and perform metadata op
 # Refresh / Clear cache buttons
 btn_spacer, btn_col1, btn_col2 = st.columns([4, 1, 1])
 with btn_col1:
-    if st.button("🔄 Refresh Data", width="stretch", type="secondary"):
+    if st.button("🔄 Refresh Data", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
         st.rerun()
 with btn_col2:
-    if st.button("🗑️ Clear Cache", width="stretch", type="secondary"):
+    if st.button("🗑️ Clear Cache", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
@@ -1068,7 +1068,7 @@ with tabs[0]:
         else:
             st.caption(_grant_msg)
 
-    if st.button("🚀 Create Object & Fields", width="stretch", key="create_object_btn"):
+    if st.button("🚀 Create Object & Fields", width="content", key="create_object_btn"):
         try:
             if not obj_label.strip():
                 raise ValueError("Object Label is required.")
@@ -1295,7 +1295,7 @@ with tabs[1]:
 
                                 st.markdown("<br>", unsafe_allow_html=True)
                                 delete_field_flag = st.checkbox("Delete this field")
-                                apply_field_changes = st.form_submit_button("Apply Changes", width="stretch")
+                                apply_field_changes = st.form_submit_button("Apply Changes", width="content")
 
                                 if apply_field_changes:
                                     try:
@@ -1492,7 +1492,7 @@ with tabs[1]:
                     else:
                         st.caption(_grant_msg_existing)
 
-                if st.button("🚀 Create Custom Field", width="stretch", key="create_new_field_btn"):
+                if st.button("🚀 Create Custom Field", width="content", key="create_new_field_btn"):
                     try:
                         if not new_field_type:
                             raise ValueError("Field Type is required.")
@@ -1614,7 +1614,7 @@ with tabs[2]:
             )
 
             if action == "Read":
-                if st.button("Read Object Metadata", width="stretch"):
+                if st.button("Read Object Metadata", width="content"):
                     try:
                         with st.spinner("Loading object metadata..."):
                             obj_meta = read_custom_object_metadata(custom_obj_selected)
@@ -1660,7 +1660,7 @@ with tabs[2]:
                             index=0 if getattr(current_meta, "deploymentStatus", "Deployed") == "Deployed" else 1,
                         )
 
-                        update_object_submit = st.form_submit_button("Update Object", width="stretch")
+                        update_object_submit = st.form_submit_button("Update Object", width="content")
 
                         if update_object_submit:
                             if not new_label.strip():
@@ -1687,7 +1687,7 @@ with tabs[2]:
                     placeholder=custom_obj_selected,
                 )
 
-                if st.button("Delete Object", width="stretch"):
+                if st.button("Delete Object", width="content"):
                     try:
                         if confirmation_text.strip() != custom_obj_selected:
                             raise ValueError("Confirmation text does not match the selected object API name.")
@@ -1701,7 +1701,7 @@ with tabs[2]:
                         notify_error(f"Failed to delete object: {exc}")
 
             elif action == "Describe":
-                if st.button("Describe Object", width="stretch"):
+                if st.button("Describe Object", width="content"):
                     try:
                         with st.spinner("Describing object..."):
                             description_data = getattr(sf, custom_obj_selected).describe()

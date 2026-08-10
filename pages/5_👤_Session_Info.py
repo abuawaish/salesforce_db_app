@@ -567,7 +567,7 @@ st.caption("Detailed information about your current Salesforce session and conne
 btn_spacer, btn_col1 = st.columns([4, 1])
 
 with btn_col1:
-    if st.button("🔄 Refresh Data", width="stretch", type="secondary"):
+    if st.button("🔄 Refresh Data", width="content", type="secondary"):
         st.cache_data.clear()
         st.rerun()
 
