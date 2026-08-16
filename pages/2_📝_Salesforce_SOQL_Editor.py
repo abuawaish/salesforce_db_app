@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import re
 from openai import OpenAI
+from permissions import require_admin_mode
 
 # ------------------------------------------------------------
 # Page Configuration
@@ -962,6 +963,8 @@ st.divider()
 # ============================================================
 # SECTION 2: Record Editor Inline CRUD
 # ============================================================
+require_admin_mode("Record editing and bulk operations")
+
 st.subheader("✏️ 2. Record Editor (Inline CRUD)")
 st.caption("Select an object, pick the fields you want to edit, and load records.")
 

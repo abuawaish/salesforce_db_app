@@ -104,8 +104,8 @@ def render_access_mode_toggle() -> None:
 def require_admin_mode(feature_name: str = "This feature") -> None:
     """
     Call at the very top of any page (or section) that performs schema
-    changes or other destructive admin-only operations. Halts the page
-    with `st.stop()` if the user isn't cleared to proceed.
+    changes, record-level DML, or other destructive admin-only operations.
+    Halts the page with `st.stop()` if the user isn't cleared to proceed.
     """
     can_modify = st.session_state.get("can_modify_schema", False)
     access_mode = st.session_state.get("access_mode", "Read-Only")
@@ -113,10 +113,10 @@ def require_admin_mode(feature_name: str = "This feature") -> None:
 
     if not can_modify:
         st.error(
-            f"🔒 **{feature_name} requires schema-modification permissions.**\n\n"
+            f"🔒 **{feature_name} requires elevated (Admin Mode) permissions.**\n\n"
             f"Your connected Salesforce user's profile (**{profile_name}**) has "
             "neither *Modify All Data* nor *Customize Application*. Ask your "
-            "Salesforce admin to grant one of those if you need this page."
+            "Salesforce admin to grant one of those if you need this."
         )
         st.stop()
 
