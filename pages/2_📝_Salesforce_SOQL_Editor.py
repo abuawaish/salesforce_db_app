@@ -172,7 +172,7 @@ def format_salesforce_error(e: Exception) -> str:
             fields = item.get("fields") or []
             if fields:
                 msg += f" (field(s): {', '.join(fields)})"
-            out.append(f"**{code}** — {msg}" if code else msg)
+            out.append(f"{code} — {msg}" if code else msg)
         return out
 
     content = getattr(e, "content", None)
@@ -194,7 +194,7 @@ def format_salesforce_error(e: Exception) -> str:
     if msg_match:
         msg = msg_match.group(1)
         code = code_match.group(1) if code_match else ""
-        return f"**{code}** — {msg}" if code else msg
+        return f"{code} — {msg}" if code else msg
 
     return text
 
@@ -560,12 +560,16 @@ def validate_bulk_csv_fields(object_name: str, df: pd.DataFrame, operation: str)
     operation = operation.lower()
 
     if operation in ("insert", "update"):
+        invalid_fields_list = []
         for field in csv_fields:
             if field not in available_fields:
-                errors.append(
-                    f"The field '{field}' is not available in the selected object "
-                    f"'{object_name}', please select the valid field for this object."
-                )
+                invalid_fields_list.append(field)
+
+        if invalid_fields_list:
+            errors.append(
+                f"The following field(s) '{', '.join(invalid_fields_list)}' are not available in the selected object "
+                f"'{object_name}', please select the valid field(s) for this object."
+            )
 
         if errors:
             return errors, warnings
@@ -1007,9 +1011,9 @@ load_btn = st.button("📂 Load Records for Edit")
 
 if load_btn:
     if not obj_for_edit:
-        st.error("❌ Please select a valid object.")
+        show_temporary_message("Please select a valid object.", level="error")
     elif not selected_fields:
-        st.error("❌ Please select at least one field to display.")
+        show_temporary_message("Please select at least one field to display.", level="error")
     else:
         with st.spinner("Loading records..."):
             try:
@@ -1034,11 +1038,9 @@ if load_btn:
                 else:
                     st.session_state["original_rows_by_id"] = {}
 
-                st.success(
-                    f"✅ Loaded {len(edit_df)} records with "
-                    f"{len(selected_fields)} visible fields."
+                show_temporary_message(
+                    f"Loaded {len(edit_df)} records with {len(selected_fields)} visible fields.", level="success"
                 )
-                st.rerun()
 
             except Exception as e:
                 show_error("Failed to load records", e)
@@ -1209,8 +1211,8 @@ if "edit_df" in st.session_state:
                         total_failures = len(update_failures) + len(insert_failures)
 
                         if total_failures:
-                            st.error(
-                                f"❌ {total_failures} record(s) failed during save."
+                            show_temporary_message(
+                                f"{total_failures} record(s) failed during save.", level="error"
                             )
 
                             if update_failures:
@@ -1394,7 +1396,7 @@ uploaded_csv = st.file_uploader(
 if uploaded_csv is not None:
     try:
         if bulk_object == "Select an object...":
-            st.error("❌ Please select a valid object for bulk operation.")
+            show_temporary_message("Please select a valid object for bulk operation.", level="error")
 
         else:
             bulk_df = pd.read_csv(uploaded_csv)
@@ -1503,15 +1505,13 @@ if uploaded_csv is not None:
                             st.write(f"**Failed records:** {failure_count}")
 
                             if success_count:
-                                st.success(
-                                    f"✅ Bulk {bulk_operation.lower()} completed: "
-                                    f"{success_count} record(s) succeeded."
+                                show_temporary_message(
+                                    f"Bulk {bulk_operation.lower()} completed: {success_count} record(s) succeeded.", level="success" 
                                 )
 
                             if failure_count:
-                                st.error(
-                                    f"❌ Bulk {bulk_operation.lower()} completed with "
-                                    f"{failure_count} failed record(s)."
+                                show_temporary_message(
+                                    f"Bulk {bulk_operation.lower()} completed with {failure_count} failed record(s).", level="error"
                                 )
 
                                 failed_df = pd.DataFrame(failed_rows)
