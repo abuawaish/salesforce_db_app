@@ -115,9 +115,9 @@ with st.form("config_form"):
     st.write("")  # spacing
 
     if st.session_state.get("config_ok") and "sf" in st.session_state:
-        action = st.form_submit_button("🔌 Disconnect", width="content", type="primary")
+        action = st.form_submit_button(":material/exit_to_app: Disconnect", width="content", type="primary")
     else:
-        action = st.form_submit_button("🔌 Test Connection", width="content", type="primary")
+        action = st.form_submit_button(":material/plug_connect: Test Connection", width="content", type="primary")
 
 # ------------------------------------------------------------
 # Handle connection test or disconnect
