@@ -18,9 +18,9 @@ st.set_page_config(
 # Check connection
 # ------------------------------------------------------------
 if "sf" not in st.session_state or not st.session_state.get("config_ok"):
-    st.warning("Please configure your Salesforce connection first (⚙️ Configuration page).")
+    st.warning(":material/warning: Please configure your Salesforce connection first (:material/settings: Configuration page).")
     st.info(
-        "💡 **What this page does:** once connected, view details about "
+        ":material/emoji_objects: **What this page does:** once connected, view details about "
         "your active Salesforce session — org info, logged-in user, API "
         "usage/limits, and session health — handy for confirming you're "
         "pointed at the right org before you run queries or edits."
