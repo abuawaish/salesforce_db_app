@@ -12,16 +12,16 @@ st.set_page_config(
         'Get Help': 'https://github.com/abuawaish/salesforce_db_app#readme',
         'Report a bug': 'https://github.com/abuawaish/salesforce_db_app/issues/new',
         'About': """
-        ## ☁️ SF Query Studio
+        ## :material/cloud: SF Query Studio
 
         Query, browse, and edit your Salesforce data — no dev console, no separate SOQL tool.
 
-        Built with Streamlit and `simple-salesforce`.
+        Built with `Streamlit` and `simple-salesforce`.
 
-        **Version:** 2.0 \n
-        **Author:** [Abu Awaish](https://github.com/abuawaish) \n
-        **Source:** [github.com/abuawaish/salesforce_db_app](https://github.com/abuawaish/salesforce_db_app) \n
-        **License:** MIT
+        - **Version:** 2.0 \n
+        - **Author:** [Abu Awaish](https://github.com/abuawaish) \n
+        - **Source:** [github.com/abuawaish/salesforce_db_app](https://github.com/abuawaish/salesforce_db_app) \n
+        - **License:** MIT
         """
     }
 )
