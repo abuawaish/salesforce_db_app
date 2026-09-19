@@ -488,6 +488,8 @@ a:focus-visible {
     border-radius: var(--radius-lg);
     padding: var(--space-lg);
     height: 100%;
+    display: flex;
+    flex-direction: column;
     transition: transform .25s cubic-bezier(.4,0,.2,1),
                 border-color .25s ease,
                 box-shadow .25s ease;
@@ -531,6 +533,7 @@ a:focus-visible {
     font-size: .88rem;
     line-height: 1.65;
     margin: 0;
+    flex: 1;
 }
 .feature-card p strong,
 .step-card p strong {
@@ -849,8 +852,8 @@ if is_connected:
         '<span class="dot"></span>Connected</span>'
     )
     status_msg = (
-        'Your session is active. Head to the '
-        '<strong>Salesforce SOQL Editor</strong> to query and manage your data.'
+        'Your session is active. '
+        'Select a tool from the sidebar to start exploring and managing your data.'
     )
 else:
     badge_html = (
@@ -894,7 +897,7 @@ st.markdown(f"""
 st.markdown("""
 <div class="hero-wrapper">
     <div class="hero-eyebrow">
-        <span class="live-dot"></span> Streamlit &middot; simple-salesforce &middot; REST API
+        <span class="live-dot"></span> Streamlit &middot; simple-salesforce &middot; REST &amp; Metadata API
     </div>
     <h1 class="hero-title">
         <span class="title-cloud">☁️ </span><span class="title-accent">SF Query Studio</span>
@@ -905,9 +908,12 @@ st.markdown("""
     </p>
     <div class="hero-tags">
         <span class="hero-tag">🔍 SOQL Queries</span>
+        <span class="hero-tag">🤖 AI Chatbot</span>
         <span class="hero-tag">✏️ Inline Editing</span>
-        <span class="hero-tag">📊 CSV Export</span>
-        <span class="hero-tag">🔒 Secure Auth</span>
+        <span class="hero-tag">⚡ Bulk CSV DML</span>
+        <span class="hero-tag">📊 Field Analysis</span>
+        <span class="hero-tag">📦 Object Manager</span>
+        <span class="hero-tag">🔒 FLS &amp; Security</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -919,19 +925,19 @@ st.markdown("""
 <div class="stats-strip">
     <div class="stat-item">
         <div class="stat-value">SOQL</div>
-        <div class="stat-label">Query Engine</div>
+        <div class="stat-label">Query Engine &middot; NL2SOQL</div>
     </div>
     <div class="stat-item">
-        <div class="stat-value">DML</div>
-        <div class="stat-label">Insert &middot; Update &middot; Delete</div>
+        <div class="stat-value">DML &amp; Bulk</div>
+        <div class="stat-label">Inline &middot; Batch CSV 200</div>
     </div>
     <div class="stat-item">
-        <div class="stat-value">CSV</div>
-        <div class="stat-label">One-Click Export</div>
+        <div class="stat-value">Metadata</div>
+        <div class="stat-label">Schema &middot; Tooling &middot; FLS</div>
     </div>
     <div class="stat-item">
-        <div class="stat-value">REST</div>
-        <div class="stat-label">Salesforce API</div>
+        <div class="stat-value">AI Agent</div>
+        <div class="stat-label">Grounded Assistant &middot; GPT-4o-mini</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -946,7 +952,7 @@ st.markdown("""
     <div class="section-icon section-icon-amber">⚡</div>
     <div>
         <div class="section-title">Core Features</div>
-        <p class="section-subtitle">Everything you need to work with your Salesforce data</p>
+        <p class="section-subtitle">Everything you need to query, manage, and explore your Salesforce org</p>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -955,43 +961,100 @@ FEATURES = [
     {
         "icon_class": "icon-amber",
         "icon": "🔍",
-        "title": "Run SOQL Queries",
+        "title": "SOQL Query &amp; AI Helper",
         "body": (
-            "Write any <strong>SELECT</strong> query against standard and custom "
-            "Salesforce objects. Results render instantly in sortable, paginated tables."
-        ),
-    },
-    {
-        "icon_class": "icon-blue",
-        "icon": "📋",
-        "title": "Interactive Results",
-        "body": (
-            "Explore data with <strong>scrollable tables</strong>, column sorting, "
-            "and one-click CSV export for quick downstream analysis."
+            "Write and execute any <strong>SELECT</strong> query with relationship joins. "
+            "Use the built-in <strong>Ask in Plain English</strong> helper (GPT-4o-mini) to translate "
+            "natural language into validated SOQL."
         ),
     },
     {
         "icon_class": "icon-green",
         "icon": "✏️",
-        "title": "Inline DML",
+        "title": "Inline Record Editor",
         "body": (
-            "Edit records directly in the table. Perform <strong>Insert, Update, "
-            "and Delete</strong> operations with a checkbox and save button."
+            "Browse and modify records in a spreadsheet-like data grid. Perform "
+            "<strong>Insert, Update, and Delete</strong> operations with smart change diffing and "
+            "metadata field-level protection."
+        ),
+    },
+    {
+        "icon_class": "icon-blue",
+        "icon": "⚡",
+        "title": "Bulk CSV Operations",
+        "body": (
+            "Execute high-throughput batch operations in <strong>200-record chunks</strong> "
+            "via the Salesforce Bulk API. Includes strict schema pre-validation, live progress tracking, "
+            "and downloadable failure reports."
+        ),
+    },
+    {
+        "icon_class": "icon-purple",
+        "icon": "📊",
+        "title": "Field &amp; Schema Analysis",
+        "body": (
+            "Inspect object schemas, relationship hierarchies, and picklist controller dependencies. "
+            "Visualize field type distributions with <strong>Plotly charts</strong> and review "
+            "Tooling API validation rules."
+        ),
+    },
+    {
+        "icon_class": "icon-amber",
+        "icon": "📦",
+        "title": "Object Manager &amp; FLS",
+        "body": (
+            "Create custom objects and define fields across 13 data types using the "
+            "<strong>Metadata API (SOAP)</strong>. Configure profile-based <strong>Field-Level "
+            "Security (FLS)</strong> directly during field creation."
+        ),
+    },
+    {
+        "icon_class": "icon-blue",
+        "icon": "🤖",
+        "title": "Salesforce AI Chatbot",
+        "body": (
+            "Ask plain-English questions about your connected org or general platform concepts. "
+            "Features <strong>autonomous tool calling</strong>, bounded query reads, and transparent "
+            "SOQL evidence panels."
+        ),
+    },
+    {
+        "icon_class": "icon-green",
+        "icon": "👤",
+        "title": "Session Diagnostics",
+        "body": (
+            "Verify live connection parameters, user profile permissions, and active org features. "
+            "Monitor daily <strong>API request allocations</strong> with an interactive Plotly "
+            "gauge chart and token masking."
         ),
     },
     {
         "icon_class": "icon-purple",
         "icon": "🔒",
-        "title": "Secure Connection",
+        "title": "Two-Layer Security",
         "body": (
-            "Authenticate with <strong>username, password &amp; security token</strong>. "
-            "Credentials stay in your session &mdash; nothing is stored to disk."
+            "Grounded in real <strong>Salesforce profile permissions</strong>, backed by an app-level "
+            "Read-Only vs Admin toggle. Credentials stay strictly in session memory &mdash; nothing "
+            "is ever stored to disk."
         ),
     },
 ]
 
-feature_cols = st.columns(len(FEATURES), gap="medium")
-for col, feature, delay in zip(feature_cols, FEATURES, (0.05, 0.12, 0.19, 0.26)):
+feature_cols_row1 = st.columns(4, gap="medium")
+for col, feature, delay in zip(feature_cols_row1, FEATURES[:4], (0.05, 0.12, 0.19, 0.26)):
+    with col:
+        st.markdown(f"""
+        <div class="feature-card" style="animation-delay:{delay}s;">
+            <div class="feature-icon-box {feature['icon_class']}">{feature['icon']}</div>
+            <h4>{feature['title']}</h4>
+            <p>{feature['body']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown('<div style="height: 1.25rem;"></div>', unsafe_allow_html=True)
+
+feature_cols_row2 = st.columns(4, gap="medium")
+for col, feature, delay in zip(feature_cols_row2, FEATURES[4:], (0.33, 0.40, 0.47, 0.54)):
     with col:
         st.markdown(f"""
         <div class="feature-card" style="animation-delay:{delay}s;">
