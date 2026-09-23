@@ -861,7 +861,7 @@ else:
         '<span class="dot"></span>Not Connected</span>'
     )
     status_msg = (
-        'Configure your Salesforce connection from the sidebar to unlock every page.'
+        "Open the <a href='Configuration' target='_self'>Configuration</a> page to link your Salesforce org and unlock every tool."
     )
 
 # ============================================================
