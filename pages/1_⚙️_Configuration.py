@@ -124,18 +124,15 @@ with st.form("config_form"):
 # ------------------------------------------------------------
 if action:
     if st.session_state.get("config_ok") and "sf" in st.session_state:
-        st.session_state["config_ok"] = False
-        st.session_state.pop("sf", None)
-        st.session_state.pop("username", None)
-        st.session_state.pop("profile_name", None)
-        st.session_state.pop("can_modify_schema", None)
-        st.session_state.pop("access_mode", None)
-        st.session_state.pop("fa_profiles", None)
+        # Clear everything: connection, caches, editor drafts, chat history,
+        # widget state (including any lingering credential inputs). A new
+        # connection — possibly to a different org — must never see stale state.
+        st.session_state.clear()
         st.toast("Successfully disconnected from the Salesforce org.", icon="✅")
         time.sleep(1.5)
         st.rerun()
     elif not username or not password:
-        st.error("❌ Please enter both username and password.")
+        st.toast("Please enter both username and password.", icon="❌")
     else:
         try:
             with st.spinner("Connecting to Salesforce..."):
@@ -152,7 +149,11 @@ if action:
                 # Lightweight sanity-check call
                 sf.describe()
 
-            # Store connection in session state
+            # Drop any stale state from a previous session (e.g. reconnecting
+            # without an explicit disconnect), then store the new connection.
+            # This also wipes the username/password/token widget values so
+            # credentials never linger in session state after authentication.
+            st.session_state.clear()
             st.session_state["sf"] = sf
             st.session_state["config_ok"] = True
             st.session_state["username"] = username
