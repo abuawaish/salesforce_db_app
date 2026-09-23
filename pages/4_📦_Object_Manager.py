@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Tuple
 import pandas as pd
 import streamlit as st
-from permissions import require_admin_mode
+from permissions import render_access_mode_toggle, require_admin_mode
 
 # ------------------------------------------------------------
 # Page Configuration
@@ -37,6 +37,12 @@ if "sf" not in st.session_state or not st.session_state.get("config_ok"):
 # gated on the connected user's REAL Salesforce permissions plus
 # an explicit Admin-mode opt-in (see permissions.py).
 # ------------------------------------------------------------
+
+# The toggle lives in the sidebar on every connected page, so users told to
+# "switch to Admin in the sidebar" can actually do it here.
+with st.sidebar:
+    render_access_mode_toggle()
+
 require_admin_mode("Object Manager")
 
 sf = st.session_state["sf"]
@@ -144,6 +150,11 @@ def validate_custom_api_name(value: str, label: str) -> str:
             f"{label} must start with a letter and contain only letters, numbers, and underscores."
         )
 
+    if len(value) > 40:
+        raise ValueError(
+            f"{label} must be 40 characters or fewer (Salesforce API name limit)."
+        )
+
     return value
 
 
@@ -157,6 +168,25 @@ def parse_picklist_values(raw: str) -> List[str]:
     values = [item.strip() for item in raw.split(",") if item.strip()]
     if not values:
         raise ValueError("Picklist values cannot be empty for Picklist or Multi-Select Picklist fields.")
+
+    # Salesforce rejects duplicate picklist values and caps each value at
+    # 255 characters — catch both here instead of a raw Metadata API error.
+    seen = set()
+    duplicates = []
+    for value in values:
+        lowered = value.lower()
+        if lowered in seen and lowered not in {d.lower() for d in duplicates}:
+            duplicates.append(value)
+        seen.add(lowered)
+    if duplicates:
+        raise ValueError(
+            "Duplicate picklist value(s) are not allowed: " + ", ".join(duplicates)
+        )
+
+    too_long = [value for value in values if len(value) > 255]
+    if too_long:
+        raise ValueError("Picklist values must be 255 characters or fewer")
+
     return values
 
 
@@ -1649,10 +1679,14 @@ with tabs[2]:
                             "Description",
                             value=getattr(current_meta, "description", "") or "",
                         )
+                        _SHARING_MODEL_OPTIONS = ["Read", "ReadWrite", "ReadWriteTransfer", "FullAccess", "ControlledByParent"]
+                        _current_sharing = getattr(current_meta, "sharingModel", "ReadWrite")
                         new_sharing = st.selectbox(
                             "Sharing Model",
-                            ["Read", "ReadWrite", "ReadWriteTransfer", "FullAccess", "ControlledByParent"],
-                            index=1 if getattr(current_meta, "sharingModel", "ReadWrite") == "ReadWrite" else 0,
+                            _SHARING_MODEL_OPTIONS,
+                            # Preserve the object's actual sharing model instead of
+                            # collapsing every non-ReadWrite value down to "Read".
+                            index=_SHARING_MODEL_OPTIONS.index(_current_sharing) if _current_sharing in _SHARING_MODEL_OPTIONS else 1,
                         )
                         new_deployment = st.selectbox(
                             "Deployment Status",
