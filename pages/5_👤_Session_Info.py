@@ -3,6 +3,7 @@ from datetime import datetime
 from html import escape
 import requests
 import streamlit as st
+from permissions import escape_soql_literal
 
 # ------------------------------------------------------------
 # Page Configuration — MUST be first Streamlit command
@@ -294,8 +295,8 @@ def _direct_json_get(url: str, session_id: str, timeout: int = 12):
 
 
 def _escape_soql(value: str) -> str:
-    value = str(value or "")
-    return value.replace("\\", "\\\\").replace("'", "\\'")
+    # Single shared escaping helper (see permissions.py).
+    return escape_soql_literal(value)
 
 
 def _safe_html(value) -> str:
