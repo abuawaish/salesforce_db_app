@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 import json
+import os
 import re
 from openai import OpenAI
-from permissions import require_admin_mode
+from permissions import render_access_mode_toggle, require_admin_mode
 
 # ------------------------------------------------------------
 # Page Configuration
@@ -29,6 +30,10 @@ if "sf" not in st.session_state or not st.session_state.get("config_ok"):
     st.stop()
 
 sf = st.session_state["sf"]
+
+# Access-mode control lives in the sidebar on every connected page.
+with st.sidebar:
+    render_access_mode_toggle()
 
 # ------------------------------------------------------------
 # Session-state caches (shared with Field Analysis page)
@@ -81,6 +86,20 @@ def get_object_field_metadata(object_name: str):
     except Exception:
         return {}
 
+def _get_openai_api_key() -> str | None:
+    """Defensive API-key lookup: Streamlit secrets first, environment fallback.
+
+    Accessing st.secrets raises when no secrets.toml exists at all, so this
+    never lets a missing key surface as a raw traceback.
+    """
+    key = ""
+    try:
+        key = st.secrets.get("OPENAI_API_KEY") or ""
+    except Exception:
+        key = ""
+    return (key or os.environ.get("OPENAI_API_KEY") or "").strip() or None
+
+
 def generate_soql_from_prompt(object_name: str, user_request: str) -> str:
     """
     Turns a plain-English request into a SOQL SELECT query, grounded in the
@@ -121,7 +140,13 @@ def generate_soql_from_prompt(object_name: str, user_request: str) -> str:
                             {field_list}
                         """
 
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        api_key = _get_openai_api_key()
+        if not api_key:
+            raise RuntimeError(
+                "OPENAI_API_KEY is not configured. Add it to `.streamlit/secrets.toml` "
+                "or set it as an environment variable."
+            )
+        client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             max_completion_tokens=300,
@@ -648,6 +673,13 @@ def prepare_bulk_records_from_csv(df: pd.DataFrame, operation: str):
     operation = operation.lower()
     df = normalize_csv_columns(df)
     records_from_csv = clean_nan_for_salesforce(df.to_dict(orient="records"))
+
+    # Normalize blank-ish values consistently: whitespace-only strings become
+    # None so " " doesn't slip through as a real value.
+    for row in records_from_csv:
+        for field, value in row.items():
+            if isinstance(value, str) and not value.strip():
+                row[field] = None
 
     records = []
 
@@ -1399,7 +1431,7 @@ if uploaded_csv is not None:
             show_temporary_message("Please select a valid object for bulk operation.", level="error")
 
         else:
-            bulk_df = pd.read_csv(uploaded_csv)
+            bulk_df = pd.read_csv(uploaded_csv, encoding="utf-8-sig")
             bulk_df = normalize_csv_columns(bulk_df)
 
             st.subheader("👀 CSV Preview")
