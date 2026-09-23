@@ -28,12 +28,22 @@ Import this from any page that needs to gate a feature:
 import streamlit as st
 
 
+def escape_soql_literal(value: str) -> str:
+    """
+    Escape a value for safe embedding inside a SOQL string literal.
+
+    Central helper so every page escapes the same way — backslashes first,
+    then single quotes. Use this instead of ad-hoc `.replace()` calls.
+    """
+    return str(value or "").replace("\\", "\\\\").replace("'", "\\'")
+
+
 def load_permission_profile(sf, username: str) -> dict:
     """
     Query the connected user's real Salesforce permissions.
     Call this once, immediately after a successful login.
     """
-    safe_username = username.replace("'", r"\'")
+    safe_username = escape_soql_literal(username)
     query = f"""
         SELECT Id, Profile.Name,
                Profile.PermissionsModifyAllData,
