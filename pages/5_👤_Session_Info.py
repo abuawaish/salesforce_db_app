@@ -3,6 +3,7 @@ from datetime import datetime
 from html import escape
 import requests
 import streamlit as st
+
 from permissions import escape_soql_literal
 
 # ------------------------------------------------------------
@@ -36,26 +37,207 @@ sf = st.session_state["sf"]
 st.markdown(
     """
 <style>
-    .metric-container {
+    /* ---------- Info cards ---------- */
+    .info-card {
         background: var(--secondary-background-color);
         border: 1px solid rgba(128, 128, 128, 0.18);
         border-radius: 12px;
-        padding: 20px;
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+    .info-card-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 18px;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+        background: color-mix(in srgb, var(--primary-color) 4%, transparent);
+    }
+    .info-card-header h4 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+    }
+    .info-card-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        font-size: 1.15rem;
+        background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--primary-color) 22%, transparent);
+        flex-shrink: 0;
+    }
+    /* ---------- Hero banner ---------- */
+    .hero-banner {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 18px 20px;
+        border-radius: 16px;
+        margin: 4px 0 20px 0;
+        background: linear-gradient(135deg,
+            color-mix(in srgb, var(--primary-color) 12%, var(--secondary-background-color)),
+            color-mix(in srgb, var(--primary-color) 4%, transparent));
+        border: 1px solid color-mix(in srgb, var(--primary-color) 25%, transparent);
+    }
+    .hero-avatar {
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        color: var(--primary-color);
+        background: color-mix(in srgb, var(--primary-color) 14%, var(--background-color));
+        border: 2px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+    }
+    .hero-body {
+        flex: 1;
+        min-width: 0;
+    }
+    .hero-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--text-color);
+    }
+    .hero-sub {
+        margin-top: 5px;
+        font-size: 0.85rem;
+        color: var(--text-color);
+        opacity: 0.7;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .hero-side {
+        margin-left: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    .hero-fresh {
+        font-size: 0.75rem;
+        color: var(--text-color);
+        opacity: 0.6;
+        white-space: nowrap;
+    }
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #22c55e;
+        flex-shrink: 0;
+        animation: hero-pulse 2.2s ease-out infinite;
+    }
+    @keyframes hero-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
+        70% { box-shadow: 0 0 0 9px rgba(34, 197, 94, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+    }
+    @media (max-width: 640px) {
+        .hero-banner {
+            display: grid;
+            grid-template-columns: 48px minmax(0, 1fr);
+            grid-template-areas:
+                "avatar body"
+                "side side";
+            gap: 12px 14px;
+            align-items: center;
+            padding: 16px;
+        }
+        .hero-avatar {
+            grid-area: avatar;
+            width: 48px;
+            height: 48px;
+            font-size: 1.15rem;
+        }
+        .hero-body {
+            grid-area: body;
+            min-width: 0;
+        }
+        .hero-title {
+            font-size: 1.05rem;
+        }
+        .hero-side {
+            grid-area: side;
+            margin-left: 0;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            border-top: 1px solid rgba(128, 128, 128, 0.12);
+            padding-top: 12px;
+        }
+        .hero-fresh {
+            white-space: normal;
+            text-align: left;
+        }
+    }
+    /* ---------- Metric cards ---------- */
+    .metric-container {
+        position: relative;
+        background: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.18);
+        border-radius: 12px;
+        padding: 20px 16px 18px;
         text-align: center;
-        transition: all 0.2s ease;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        overflow: hidden;
+    }
+    .metric-container::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--primary-color), transparent);
+        opacity: 0.85;
     }
     .metric-container:hover {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 25%, transparent);
+        transform: translateY(-2px);
+        border-color: color-mix(in srgb, var(--primary-color) 45%, transparent);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    }
+    .metric-icon {
+        font-size: 1.5rem;
+        margin-bottom: 10px;
     }
     .metric-label {
         color: var(--text-color);
-        opacity: 0.7;
-        font-size: 0.75rem;
+        opacity: 0.65;
+        font-size: 0.72rem;
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: 1.2px;
         margin-bottom: 8px;
     }
+    .metric-value {
+        color: var(--text-color);
+        font-size: 1.25rem;
+        font-weight: 700;
+        line-height: 1.3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .metric-value.mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.95rem;
+        font-weight: 600;
+    }
+    /* ---------- Footer ---------- */
     .footer-panel {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -88,6 +270,11 @@ st.markdown(
         margin-right: 6px;
         opacity: 0.95;
     }
+    .footer-panel strong {
+        color: var(--text-color);
+        opacity: 0.95;
+        font-weight: 700;
+    }
     @media (max-width: 640px) {
         .footer-panel {
             grid-template-columns: 1fr;
@@ -100,11 +287,7 @@ st.markdown(
             margin-right: 0;
         }
     }
-    .footer-panel strong {
-        color: var(--text-color);
-        opacity: 0.95;
-        font-weight: 700;
-    }
+    /* ---------- Data table ---------- */
     .data-table {
         width: 100%;
         border-collapse: collapse;
@@ -149,7 +332,7 @@ st.markdown(
         font-size: 0.9rem;
         text-transform: uppercase;
         letter-spacing: 0.03em;
-        padding: 12px 18px 12px 18px;
+        padding: 12px 18px;
         padding-right: 16px;
         background: color-mix(in srgb, var(--secondary-background-color) 88%, transparent);
         border-right: 1px solid rgba(128, 128, 128, 0.10);
@@ -161,6 +344,7 @@ st.markdown(
         font-size: 0.9rem;
         word-break: break-word;
     }
+    /* ---------- Badges & misc ---------- */
     .badge {
         display: inline-block;
         padding: 3px 10px;
@@ -199,46 +383,6 @@ st.markdown(
         border-radius: 6px;
         word-break: break-all;
         display: inline-block;
-    }
-    .footer-panel {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-        align-items: center;
-        padding: 16px 18px;
-        margin-top: 20px;
-        border-top: 1px solid rgba(128, 128, 128, 0.12);
-        background: color-mix(in srgb, var(--secondary-background-color) 92%, transparent);
-        border-radius: 12px;
-        color: var(--text-color);
-        opacity: 0.86;
-    }
-    .footer-panel div {
-        font-size: 0.9rem;
-        line-height: 1.6;
-        word-break: break-word;
-    }
-    .footer-panel div:not(:last-child) {
-        border-right: 1px solid rgba(128, 128, 128, 0.12);
-        padding-right: 16px;
-        margin-right: 12px;
-    }
-    @media (max-width: 640px) {
-        .footer-panel {
-            grid-template-columns: 1fr;
-            padding: 14px 16px;
-        }
-        .footer-panel div {
-            width: 100%;
-            border-right: none;
-            padding-right: 0;
-            margin-right: 0;
-        }
-    }
-    .footer-panel strong {
-        color: var(--text-color);
-        opacity: 0.95;
-        font-weight: 700;
     }
     div[data-testid="stExpander"] details {
         border: 1px solid rgba(128, 128, 128, 0.15);
@@ -328,7 +472,7 @@ def render_card(title, icon, rows, error=None):
     error_html = f'<div class="error-banner">⚠️ {_safe_html(error)}</div>' if error else ""
     html = (
         f'<div class="info-card">'
-        f'<div class="info-card-header"><span style="font-size:1.2rem;">{_safe_html(icon)}</span><h4>{_safe_html(title)}</h4></div>'
+        f'<div class="info-card-header"><span class="info-card-icon">{_safe_html(icon)}</span><h4>{_safe_html(title)}</h4></div>'
         f'<div class="info-card-body">{error_html}<table class="data-table">{rows_html}</table></div>'
         f"</div>"
     )
@@ -556,6 +700,10 @@ def fetch_session_info(_sf, session_key: str):
         if identity_attempt_errors:
             info["warnings"].append("User resolution attempts: " + " | ".join(identity_attempt_errors[:3]))
 
+    # Timestamp of the actual fetch (cached alongside the data so the UI can
+    # show how fresh the snapshot is, even when served from the TTL cache).
+    info["fetched_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     return info
 
 
@@ -578,6 +726,35 @@ with st.spinner("Fetching session information from Salesforce..."):
     session_key = f"{getattr(sf, 'sf_instance', '')}:{getattr(sf, 'session_id', '')}"
     info = fetch_session_info(sf, session_key)
 
+user = info.get("user", {})
+org = info.get("org", {})
+identity = info.get("identity", {})
+
+user_name = user.get("name") or identity.get("display_name") or identity.get("user_full_name") or "Unknown User"
+org_name = org.get("Name") or "Unknown Org"
+username = user.get("username") or "—"
+fetched_at = info.get("fetched_at", "—")
+initials = "".join(w[0] for w in str(user_name).split()[:2]).upper() or "?"
+
+# ------------------------------------------------------------
+# Hero banner — connection status at a glance
+# ------------------------------------------------------------
+hero_html = (
+    '<div class="hero-banner">'
+    f'<div class="hero-avatar">{_safe_html(initials)}</div>'
+    '<div class="hero-body">'
+    f'<div class="hero-title"><span class="status-dot"></span>{_safe_html(user_name)}</div>'
+    f'<div class="hero-sub">{_safe_html(username)} &nbsp;·&nbsp; {_safe_html(org_name)}'
+    f' &nbsp;·&nbsp; API {_safe_html(info.get("api_version", "N/A"))}</div>'
+    "</div>"
+    '<div class="hero-side">'
+    '<span class="badge badge-success">Connected</span>'
+    f'<span class="hero-fresh">Updated {_safe_html(fetched_at)} · auto-refresh 10 min</span>'
+    "</div>"
+    "</div>"
+)
+st.markdown(hero_html, unsafe_allow_html=True)
+
 if info.get("warnings"):
     with st.expander(f"⚠️ Warnings ({len(info['warnings'])})", expanded=False):
         for w in info["warnings"]:
@@ -588,13 +765,6 @@ if info.get("errors"):
         for e in info["errors"]:
             st.error(e)
 
-user = info.get("user", {})
-org = info.get("org", {})
-identity = info.get("identity", {})
-
-user_name = user.get("name") or identity.get("display_name") or identity.get("user_full_name") or "Unknown User"
-org_name = org.get("Name") or "Unknown Org"
-
 # ------------------------------------------------------------
 # Overview Metrics
 # ------------------------------------------------------------
@@ -602,28 +772,33 @@ st.subheader("📊 Session Overview")
 
 m1, m2, m3, m4 = st.columns(4)
 with m1:
+    api_version = info.get("api_version", "N/A")
     st.markdown(
-        f'<div class="metric-container"><div class="metric-label">API Version</div>'
-        f'<div class="metric-value">{_safe_html(info.get("api_version", "N/A"))}</div></div>',
+        f'<div class="metric-container" title="{_safe_html(api_version)}">'
+        f'<div class="metric-icon">⚡</div><div class="metric-label">API Version</div>'
+        f'<div class="metric-value">{_safe_html(api_version)}</div></div>',
         unsafe_allow_html=True,
     )
 with m2:
     st.markdown(
-        f'<div class="metric-container"><div class="metric-label">User</div>'
-        f'<div class="metric-value" style="font-size:1.1rem;">{_safe_html(user_name)}</div></div>',
+        f'<div class="metric-container" title="{_safe_html(user_name)}">'
+        f'<div class="metric-icon">👤</div><div class="metric-label">User</div>'
+        f'<div class="metric-value">{_safe_html(user_name)}</div></div>',
         unsafe_allow_html=True,
     )
 with m3:
     st.markdown(
-        f'<div class="metric-container"><div class="metric-label">Organization</div>'
-        f'<div class="metric-value" style="font-size:1.1rem;">{_safe_html(org_name)}</div></div>',
+        f'<div class="metric-container" title="{_safe_html(org_name)}">'
+        f'<div class="metric-icon">🏢</div><div class="metric-label">Organization</div>'
+        f'<div class="metric-value">{_safe_html(org_name)}</div></div>',
         unsafe_allow_html=True,
     )
 with m4:
     org_id_val = org.get("Id") or "N/A"
     st.markdown(
-        f'<div class="metric-container"><div class="metric-label">Org ID</div>'
-        f'<div class="metric-value" style="font-size:0.95rem;font-family:monospace;">{_safe_html(org_id_val)}</div></div>',
+        f'<div class="metric-container" title="{_safe_html(org_id_val)}">'
+        f'<div class="metric-icon">🆔</div><div class="metric-label">Org ID</div>'
+        f'<div class="metric-value mono">{_safe_html(org_id_val)}</div></div>',
         unsafe_allow_html=True,
     )
 
@@ -788,8 +963,8 @@ with st.expander("📄 Raw Data (JSON)", expanded=False):
 st.divider()
 footer_html = f"""
 <div class="footer-panel">
-    <div class="footer-item"><span class="footer-icon">📅</span><span><strong>Data fetched at:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</span></div>
-    <div class="footer-item"><span class="footer-icon">🔗</span><span><strong>Connected to:</strong> {user_name.upper()} AT {org_name} ON API {info.get('api_version', 'N/A')}</span></div>
+    <div class="footer-item"><span class="footer-icon">📅</span><span><strong>Data fetched at:</strong> {_safe_html(fetched_at)}</span></div>
+    <div class="footer-item"><span class="footer-icon">🔗</span><span><strong>Connected to:</strong> {_safe_html(user_name.upper())} AT {_safe_html(org_name)} ON API {_safe_html(info.get('api_version', 'N/A'))}</span></div>
 </div>
 """
 st.markdown(footer_html, unsafe_allow_html=True)
