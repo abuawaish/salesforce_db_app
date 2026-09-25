@@ -119,20 +119,6 @@ st.markdown(
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    .hero-side {
-        margin-left: auto;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 8px;
-        flex-shrink: 0;
-    }
-    .hero-fresh {
-        font-size: 0.75rem;
-        color: var(--text-color);
-        opacity: 0.6;
-        white-space: nowrap;
-    }
     .status-dot {
         width: 10px;
         height: 10px;
@@ -150,9 +136,7 @@ st.markdown(
         .hero-banner {
             display: grid;
             grid-template-columns: 48px minmax(0, 1fr);
-            grid-template-areas:
-                "avatar body"
-                "side side";
+            grid-template-areas: "avatar body";
             gap: 12px 14px;
             align-items: center;
             padding: 16px;
@@ -169,19 +153,6 @@ st.markdown(
         }
         .hero-title {
             font-size: 1.05rem;
-        }
-        .hero-side {
-            grid-area: side;
-            margin-left: 0;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 6px;
-            border-top: 1px solid rgba(128, 128, 128, 0.12);
-            padding-top: 12px;
-        }
-        .hero-fresh {
-            white-space: normal;
-            text-align: left;
         }
     }
     /* ---------- Metric cards ---------- */
@@ -713,15 +684,6 @@ def fetch_session_info(_sf, session_key: str):
 st.title("👤 Session Information")
 st.caption("Detailed information about your current Salesforce session and connection.")
 
-btn_spacer, btn_col1 = st.columns([4, 1])
-
-with btn_col1:
-    if st.button("🔄 Refresh Data", width="content", type="secondary"):
-        st.cache_data.clear()
-        st.rerun()
-
-st.divider()
-
 with st.spinner("Fetching session information from Salesforce..."):
     session_key = f"{getattr(sf, 'sf_instance', '')}:{getattr(sf, 'session_id', '')}"
     info = fetch_session_info(sf, session_key)
@@ -744,16 +706,20 @@ hero_html = (
     f'<div class="hero-avatar">{_safe_html(initials)}</div>'
     '<div class="hero-body">'
     f'<div class="hero-title"><span class="status-dot"></span>{_safe_html(user_name)}</div>'
-    f'<div class="hero-sub">{_safe_html(username)} &nbsp;·&nbsp; {_safe_html(org_name)}'
-    f' &nbsp;·&nbsp; API {_safe_html(info.get("api_version", "N/A"))}</div>'
-    "</div>"
-    '<div class="hero-side">'
-    '<span class="badge badge-success">Connected</span>'
-    f'<span class="hero-fresh">Updated {_safe_html(fetched_at)} · auto-refresh 10 min</span>'
+    f'<div class="hero-sub">{_safe_html(username)}</div>'
     "</div>"
     "</div>"
 )
-st.markdown(hero_html, unsafe_allow_html=True)
+
+hero_col, btn_col = st.columns([4, 1])
+with hero_col:
+    st.markdown(hero_html, unsafe_allow_html=True)
+with btn_col:
+    if st.button("🔄 Refresh Data", width="content", type="secondary"):
+        st.cache_data.clear()
+        st.rerun()
+
+st.divider()
 
 if info.get("warnings"):
     with st.expander(f"⚠️ Warnings ({len(info['warnings'])})", expanded=False):
