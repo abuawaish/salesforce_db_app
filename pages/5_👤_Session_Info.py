@@ -84,19 +84,21 @@ st.markdown(
         border: 1px solid color-mix(in srgb, var(--primary-color) 25%, transparent);
     }
     .hero-avatar {
-        width: 54px;
-        height: 54px;
+        width: 58px;
+        height: 58px;
         border-radius: 50%;
         flex-shrink: 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.3rem;
+        font-size: 1.45rem;
         font-weight: 800;
         letter-spacing: 0.5px;
         color: var(--primary-color);
         background: color-mix(in srgb, var(--primary-color) 14%, var(--background-color));
-        border: 2px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+        border: 2px solid #1d4ed8;
+        box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+        position: relative;
     }
     .hero-body {
         flex: 1;
@@ -143,9 +145,10 @@ st.markdown(
         }
         .hero-avatar {
             grid-area: avatar;
-            width: 48px;
-            height: 48px;
-            font-size: 1.15rem;
+            width: 52px;
+            height: 52px;
+            font-size: 1.2rem;
+            border-width: 3px;
         }
         .hero-body {
             grid-area: body;
