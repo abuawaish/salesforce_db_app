@@ -70,12 +70,28 @@ st.markdown("""
 # ------------------------------------------------------------
 with st.form("config_form"):
     # Environment selection
-    env = st.radio(
-        "Environment",
-        options=["Production", "Sandbox"],
-        index=0,
-        help="Choose 'Production' for your live org, or 'Sandbox' for a developer/test sandbox."
-    )
+    col1, col2 = st.columns([5, 2])
+    with col1:
+        env = st.radio(
+            "Environment",
+            options=["Production", "Sandbox"],
+            index=0,
+            help="Choose 'Production' for your live org, or 'Sandbox' for a developer/test sandbox."
+        )
+    with col2:
+        api_version = st.selectbox(
+            "API Version",
+            options=(
+                    "59.0", 
+                    "60.0",
+                    "61.0",
+                    "62.0",
+                    "63.0",
+                    "64.0"
+            ),
+            index=0,
+            help="Select the Salesforce API version to use for this connection."
+        )
 
     if env == "Production":
         st.info("ℹ️ **Hint:** Use 'Sandbox' if you are connecting to a developer sandbox (test.salesforce.com).")
@@ -145,6 +161,7 @@ if action:
                     password=password,
                     security_token=security_token.strip() if security_token else "",
                     domain=domain,
+                    version=api_version
                 )
                 # Lightweight sanity-check call
                 sf.describe()
