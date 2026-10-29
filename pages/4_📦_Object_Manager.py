@@ -913,10 +913,10 @@ with tabs[0]:
 
     control_col1, control_col2, control_col3 = st.columns([1, 1, 4])
     with control_col1:
-        st.button("Insert Row", on_click=add_create_field_row, width="content")
+        st.button(":material/add: Insert Row", on_click=add_create_field_row, width="content")
     with control_col2:
         st.button(
-            "Delete Row",
+            ":material/delete: Delete Row",
             on_click=remove_last_create_field_row,
             disabled=len(st.session_state.create_field_row_ids) <= 1,
             width="content",
