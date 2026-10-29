@@ -70,6 +70,13 @@ APP_CONTEXT = """
                 Admin mode only.
                 - Session Info: shows the current Salesforce connection and API session details.
                 - SF Chatbot: this page. It inspects the connected org read-only and explains the other pages.
+                - Governor Limits: shows live governor-limit consumption for the connected org from the
+                Limits REST API — KPI tiles, usage bars, warnings past 70% usage. Read-only, informational.
+                - SF Cloud Code: browser code workspace for Apex classes, Apex triggers, and Lightning Web
+                Component bundles (Ace editor, diffs against the server copy). Admin mode only: deploy via
+                the Tooling API container flow with a Metadata API fallback, triggers deploy as Active, new
+                or partial LWC bundles deploy as one atomic Metadata API zip, and failed deploys return
+                plain-word error messages with line numbers and hints.
 
                 Access Mode: every user starts in Read-Only. Only users whose real Salesforce profile has
                 "Modify All Data" or "Customize Application" can switch to Admin mode in the sidebar, which is
