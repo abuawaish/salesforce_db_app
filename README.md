@@ -110,6 +110,30 @@ Design constraints worth knowing:
 - **Bounded reads.** A query without a `LIMIT` automatically receives `LIMIT 100`, so a broad question cannot page through an entire object.
 - Requires an OpenAI API key — see [AI Feature Configuration](#ai-feature-configuration).
 
+### 9. Governor Limits
+
+Found under the `Governor Limits` page:
+
+- Shows live governor-limit consumption for the connected org, pulled from the Salesforce Limits REST API with per-session caching.
+- KPI tiles for the key limits with ok / warning / critical status colors, rendered for both light and dark themes.
+- A "Key Limits" section plus a full "All Limits" list with usage bars for every limit the org reports.
+- Warns automatically when any limit is already past 70% of its quota.
+- "Refresh now" button and an optional 30-second auto-refresh toggle; refreshing this page never wipes the other pages' caches.
+- Read-only and informational — it never touches your org's data or metadata.
+
+### 10. SF Cloud Code
+
+Found under the `SF Cloud Code` page:
+
+- A browser-based code workspace for Apex classes, Apex triggers, and Lightning Web Component bundles, with an Ace code editor, Git-style change indicators, and diffs against the server copy.
+- Deploy to the org via the Tooling API (container flow) with a Metadata API fallback that preserves the deploy status.
+- **Triggers:** pick the trigger's object straight from the org (REST global describe, triggerable objects only including custom `__c` objects; API names only; type or refresh to narrow the list), and deploy triggers as Active.
+- **LWC:** new or partial bundles deploy as one atomic Metadata API zip (package.xml plus every bundle file, using the apiVersion from the bundle's own `.js-meta.xml`); pure updates go through Tooling PATCH.
+- **Deleted-from-org detection:** if Refetch returns a 404, the file is flagged DELETED (🗑️ D) with a local-copy-intact warning and the stale server timestamp hidden; Deploy then recreates it and adopts the new Id (fully for Apex/triggers; a deleted LWC file is recreated into its existing bundle).
+- **Persistent deploy feedback:** errors and warnings stay on screen across reruns until the next action on that file, a successful deploy, or the file is closed; success toasts show once, for their full duration.
+- **Clean error messages:** `Compilation Failure …` envelopes are unwrapped into plain words with the exact line/column plus kind-specific hints, and failed Apex/Trigger creates show labeled detail ("Creating ApexClass was rejected:") that reads just like a failed update.
+- Editing and deploying code requires Admin mode.
+
 ## AI Feature Configuration
 
 Two pages use the OpenAI API and need an API key: the “Ask in Plain English” helper on the `Salesforce SOQL Editor` page, and the `SF Chatbot` page. Every other feature works without one.
@@ -152,6 +176,9 @@ The project is organized around a main app entry point, a small set of shared ut
 - `pages/4_📦_Object_Manager.py` - Object and field management experience for creating, editing, and configuring custom metadata.
 - `pages/5_👤_Session_Info.py` - Session diagnostics page showing the active connection details and org information.
 - `pages/6_🤖_SF_Chatbot.py` - Read-only Salesforce assistant that answers questions about the connected org and about Salesforce, with SOQL evidence for every answer.
+- `pages/7_📈_Governor_Limits.py` - Live governor-limit consumption dashboard with KPI tiles, usage bars, and 70%-of-quota warnings.
+- `pages/8_🌩️_SF_Cloud_Code.py` - Browser code workspace for Apex classes, triggers, and LWC bundles with deploy-to-org support.
+- `cloud_code.py` - Shared backend for `SF Cloud Code`: Tooling API deploys, Metadata API fallback, trigger and LWC bundle handling, and clean error translation.
 - `requirements.txt` - Python dependencies required to run the app.
 - `.gitignore` - Lists files and folders that Git should ignore, such as virtual environments, local secrets, and editor-specific artifacts.
 - `LICENSE` - Contains the open-source license terms for the project.
@@ -168,6 +195,7 @@ The app relies on the following packages:
 - `requests`
 - `zeep`
 - `openai` - used by the “Ask in Plain English” helper and the `SF Chatbot` page
+- `streamlit-ace` - code editor used by the `SF Cloud Code` page
 
 Python 3.10 or newer is required.
 
