@@ -1686,13 +1686,13 @@ with editor:
                 st.session_state["cc_deploy_pending"] = selected
                 _panel_rerun = True
         with a3:
-            if st.button("↩ Revert", width="stretch",
+            if st.button(":material/undo: Revert", width="stretch",
                          disabled=entry["current"] == entry["original"] and not has_unsaved):
                 entry["current"] = entry["original"]
                 _reset_editor_widget(selected)
                 _panel_rerun = True
         with a4:
-            if st.button("♻ Refetch", width="stretch",
+            if st.button(":material/recycling: Refetch", width="stretch",
                          disabled=bool(entry.get("is_new"))):
                 _refetch(selected)
                 _panel_rerun = True
@@ -1703,7 +1703,7 @@ with editor:
                                   key=f"cc_diff_{selected}")
         with b2:
             if entry.get("is_new"):
-                if st.button("🗑 Discard draft", width="stretch"):
+                if st.button(":material/delete: Discard draft", width="stretch"):
                     bundle = entry.get("bundle")
                     del ws[selected]
                     unsaved.pop(selected, None)
