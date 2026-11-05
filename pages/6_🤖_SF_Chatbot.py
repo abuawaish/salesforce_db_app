@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 
 import streamlit as st
 from openai import (
@@ -331,6 +332,8 @@ def _friendly_error(error: Exception) -> str:
         )
     if gemini_code == 429:
         return "the Gemini rate limit or quota was reached. Please retry in a moment."
+    if gemini_code == 503:
+        return "the Gemini model is busy right now (high demand). Please try again in a moment."
     if isinstance(error, AuthenticationError):
         return (
             "the OpenAI API key was rejected. Check `OPENAI_API_KEY` in "
@@ -341,6 +344,8 @@ def _friendly_error(error: Exception) -> str:
     if isinstance(error, APIConnectionError):
         return "the assistant service could not be reached. Check your network and retry."
     if isinstance(error, APIStatusError):
+        if getattr(error, "status_code", None) == 503:
+            return "the assistant service is busy right now (high demand). Please try again in a moment."
         return f"the assistant service returned an error (HTTP {error.status_code})."
     return _clean_salesforce_error(error)
 
@@ -810,6 +815,22 @@ def _gemini_function_calls(response) -> list:
     return calls
 
 
+def _gemini_generate_with_retry(client, model, contents, config):
+    """One automatic retry when Gemini answers 503 (transient high demand).
+
+    Only 503 is retried: a rate-limit (429) or a bad key (400/401/403) would
+    just fail again immediately, so those surface at once. The retry wraps a
+    single model call — never the whole agentic loop, so no tool runs twice.
+    """
+    try:
+        return client.models.generate_content(model=model, contents=contents, config=config)
+    except Exception as error:
+        if _gemini_api_code(error) != 503:
+            raise
+        time.sleep(2)
+        return client.models.generate_content(model=model, contents=contents, config=config)
+
+
 def _assistant_reply_gemini(user_text: str, history: list[dict]) -> tuple[str, list[dict], list[str]]:
     """Same agentic loop as the OpenAI path, via `from google import genai`.
 
@@ -861,10 +882,11 @@ def _assistant_reply_gemini(user_text: str, history: list[dict]) -> tuple[str, l
 
     for round_index in range(MAX_TOOL_ROUNDS):
         final_round = round_index == MAX_TOOL_ROUNDS - 1
-        response = client.models.generate_content(
-            model=model,
-            contents=contents,
-            config=final_config if final_round else base_config,
+        response = _gemini_generate_with_retry(
+            client,
+            model,
+            contents,
+            final_config if final_round else base_config,
         )
         function_calls = _gemini_function_calls(response)
 
