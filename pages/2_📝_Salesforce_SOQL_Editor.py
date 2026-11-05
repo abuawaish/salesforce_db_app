@@ -100,6 +100,81 @@ def _get_openai_api_key() -> str | None:
     return (key or os.environ.get("OPENAI_API_KEY") or "").strip() or None
 
 
+# ------------------------------------------------------------
+# LLM provider selection (OpenAI or Gemini) — mirrors the SF Chatbot page
+# ------------------------------------------------------------
+GEMINI_MODEL = "gemini-3.5-flash-lite"  # free tier via Google AI Studio (no credit card)
+
+
+def _llm_provider() -> str:
+    """'openai' (default) or 'gemini'. Set LLM_PROVIDER in secrets or env to switch."""
+    provider = ""
+    try:
+        provider = st.secrets.get("LLM_PROVIDER") or ""
+    except Exception:
+        provider = ""
+    provider = (provider or os.environ.get("LLM_PROVIDER") or "").strip().lower()
+    return provider if provider in {"openai", "gemini"} else "openai"
+
+
+def _get_gemini_api_key() -> str | None:
+    key = ""
+    try:
+        key = st.secrets.get("GEMINI_API_KEY") or ""
+    except Exception:
+        key = ""
+    return (key or os.environ.get("GEMINI_API_KEY") or "").strip() or None
+
+
+def _get_llm_api_key(provider: str) -> str | None:
+    return _get_gemini_api_key() if provider == "gemini" else _get_openai_api_key()
+
+
+def _llm_key_name(provider: str) -> str:
+    return "GEMINI_API_KEY" if provider == "gemini" else "OPENAI_API_KEY"
+
+
+def _llm_model(provider: str) -> str:
+    """Optional LLM_MODEL override, else the per-provider default."""
+    override = ""
+    try:
+        override = st.secrets.get("LLM_MODEL") or ""
+    except Exception:
+        override = ""
+    override = (override or os.environ.get("LLM_MODEL") or "").strip()
+    if override:
+        return override
+    return GEMINI_MODEL if provider == "gemini" else "gpt-4o-mini"
+
+
+def _gemini_generate_soql(system_prompt: str, user_request: str, api_key: str) -> str:
+    """Single plain-text completion via `from google import genai`."""
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError as error:
+        raise RuntimeError(
+            "The 'google-genai' package is not installed. Run "
+            "`pip install -r requirements.txt` and reload the app."
+        ) from error
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=_llm_model("gemini"),
+        contents=user_request,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=0,
+            max_output_tokens=300,
+        ),
+    )
+    parts = []
+    for candidate in getattr(response, "candidates", None) or []:
+        for part in getattr(getattr(candidate, "content", None), "parts", None) or []:
+            if getattr(part, "text", None):
+                parts.append(part.text)
+    return "".join(parts).strip()
+
+
 def generate_soql_from_prompt(object_name: str, user_request: str) -> str:
     """
     Turns a plain-English request into a SOQL SELECT query, grounded in the
@@ -140,23 +215,27 @@ def generate_soql_from_prompt(object_name: str, user_request: str) -> str:
                             {field_list}
                         """
 
-        api_key = _get_openai_api_key()
+        provider = _llm_provider()
+        api_key = _get_llm_api_key(provider)
         if not api_key:
             raise RuntimeError(
-                "OPENAI_API_KEY is not configured. Add it to `.streamlit/secrets.toml` "
+                f"{_llm_key_name(provider)} is not configured. Add it to `.streamlit/secrets.toml` "
                 "or set it as an environment variable."
             )
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            max_completion_tokens=300,
-            temperature=0,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_request},
-            ],
-        )
-        query = response.choices[0].message.content.strip()
+        if provider == "gemini":
+            query = _gemini_generate_soql(system_prompt, user_request, api_key)
+        else:
+            client = OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model=_llm_model(provider),
+                max_completion_tokens=300,
+                temperature=0,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_request},
+                ],
+            )
+            query = response.choices[0].message.content.strip()
 
         # Defense-in-depth: never trust the model's promise alone.
         # Reject anything that isn't unambiguously a read-only SELECT.
