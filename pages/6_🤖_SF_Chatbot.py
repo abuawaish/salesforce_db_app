@@ -39,6 +39,7 @@ sf = st.session_state["sf"]
 # Constants
 # ------------------------------------------------------------
 CHAT_MODEL = "gpt-4o-mini"
+GEMINI_MODEL = "gemini-3.5-flash-lite"  # free tier via Google AI Studio (no credit card)
 
 MAX_TOOL_ROUNDS = 5            # model turns per question; the last one is forced to answer
 MAX_HISTORY_MESSAGES = 12      # chat turns replayed to the model (session-only memory)
@@ -243,6 +244,56 @@ def _openai_client(api_key: str) -> OpenAI:
     return OpenAI(api_key=api_key)
 
 
+# ------------------------------------------------------------
+# LLM provider selection (OpenAI or Gemini)
+# ------------------------------------------------------------
+def _llm_provider() -> str:
+    """'openai' (default) or 'gemini'. Set LLM_PROVIDER in secrets or env to switch.
+
+    The SF Chatbot and Ask-in-Plain-English both honor this, so one switch
+    moves the whole app to the free Gemini tier.
+    """
+    provider = ""
+    try:
+        provider = st.secrets.get("LLM_PROVIDER") or ""
+    except Exception:
+        provider = ""
+    provider = (provider or os.environ.get("LLM_PROVIDER") or "").strip().lower()
+    return provider if provider in {"openai", "gemini"} else "openai"
+
+
+def _gemini_api_key() -> str | None:
+    """Read the Gemini key from Streamlit secrets, falling back to the environment."""
+    key = ""
+    try:
+        key = st.secrets.get("GEMINI_API_KEY") or ""
+    except Exception:
+        key = ""
+    key = (key or os.environ.get("GEMINI_API_KEY") or "").strip()
+    return key or None
+
+
+def _llm_api_key(provider: str) -> str | None:
+    return _gemini_api_key() if provider == "gemini" else _openai_api_key()
+
+
+def _llm_key_name(provider: str) -> str:
+    return "GEMINI_API_KEY" if provider == "gemini" else "OPENAI_API_KEY"
+
+
+def _llm_model(provider: str) -> str:
+    """Optional LLM_MODEL override, else the per-provider default."""
+    override = ""
+    try:
+        override = st.secrets.get("LLM_MODEL") or ""
+    except Exception:
+        override = ""
+    override = (override or os.environ.get("LLM_MODEL") or "").strip()
+    if override:
+        return override
+    return GEMINI_MODEL if provider == "gemini" else CHAT_MODEL
+
+
 def _clean_salesforce_error(error: Exception) -> str:
     content = getattr(error, "content", None)
     if isinstance(content, list):
@@ -258,8 +309,28 @@ def _clean_salesforce_error(error: Exception) -> str:
     return str(error)
 
 
+def _gemini_api_code(error: Exception) -> int | None:
+    """HTTP status from a google-genai APIError, else None.
+
+    Matched by module path (not isinstance) so this check stays safe when
+    `google-genai` is not installed at all.
+    """
+    if type(error).__module__.startswith("google.genai"):
+        code = getattr(error, "code", None)
+        return code if isinstance(code, int) else None
+    return None
+
+
 def _friendly_error(error: Exception) -> str:
     """Turn provider/API failures into something a Salesforce admin can act on."""
+    gemini_code = _gemini_api_code(error)
+    if gemini_code in (400, 401, 403):
+        return (
+            "the Gemini API key was rejected. Check `GEMINI_API_KEY` in "
+            "`.streamlit/secrets.toml`."
+        )
+    if gemini_code == 429:
+        return "the Gemini rate limit or quota was reached. Please retry in a moment."
     if isinstance(error, AuthenticationError):
         return (
             "the OpenAI API key was rejected. Check `OPENAI_API_KEY` in "
@@ -658,7 +729,188 @@ def _model_transcript(history: list[dict]) -> list[dict]:
     return turns[-MAX_HISTORY_MESSAGES:]
 
 
+# ------------------------------------------------------------
+# Gemini provider (google-genai SDK) — free tier via Google AI Studio
+# ------------------------------------------------------------
+def _strip_additional_properties(schema):
+    """Gemini's function-calling schema dialect rejects `additionalProperties`,
+    which the OpenAI-format TOOLS carry. Drop it recursively; the required /
+    properties structure is shared by both dialects."""
+    if isinstance(schema, dict):
+        return {
+            key: _strip_additional_properties(value)
+            for key, value in schema.items()
+            if key != "additionalProperties"
+        }
+    if isinstance(schema, list):
+        return [_strip_additional_properties(item) for item in schema]
+    return schema
+
+
+def _gemini_tools():
+    """Convert the OpenAI-format TOOLS into a google-genai Tool.
+
+    TOOLS stays defined once in OpenAI format (single source of truth); the
+    conversion runs per call so the two providers can never drift apart.
+    The import is lazy so this page still loads for OpenAI users when
+    `google-genai` is not installed.
+    """
+    try:
+        from google.genai import types
+    except ImportError as error:
+        raise RuntimeError(
+            "The 'google-genai' package is not installed. Run "
+            "`pip install -r requirements.txt` and reload the app."
+        ) from error
+    declarations = []
+    for tool in TOOLS:
+        function = tool.get("function", {})
+        declarations.append(
+            {
+                "name": function.get("name"),
+                "description": function.get("description"),
+                "parameters": _strip_additional_properties(function.get("parameters") or {}),
+            }
+        )
+    return types.Tool(function_declarations=declarations)
+
+
+def _gemini_contents(history: list[dict], user_text: str) -> list:
+    """Replay history as genai Content. Roles are 'user'/'model' in this SDK."""
+    from google.genai import types
+
+    contents = []
+    for message in _model_transcript(history):
+        role = "model" if message["role"] == "assistant" else "user"
+        contents.append(types.Content(role=role, parts=[types.Part.from_text(text=message["content"])]))
+    contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_text)]))
+    return contents
+
+
+def _gemini_response_text(response) -> str:
+    """Concatenate the text parts of the first candidate (never .text: a
+    function-call-only turn has no text parts)."""
+    parts = []
+    for candidate in getattr(response, "candidates", None) or []:
+        content = getattr(candidate, "content", None)
+        for part in getattr(content, "parts", None) or []:
+            if getattr(part, "text", None):
+                parts.append(part.text)
+    return "".join(parts).strip()
+
+
+def _gemini_function_calls(response) -> list:
+    calls = []
+    for candidate in getattr(response, "candidates", None) or []:
+        content = getattr(candidate, "content", None)
+        for part in getattr(content, "parts", None) or []:
+            function_call = getattr(part, "function_call", None)
+            if function_call is not None:
+                calls.append(function_call)
+    return calls
+
+
+def _assistant_reply_gemini(user_text: str, history: list[dict]) -> tuple[str, list[dict], list[str]]:
+    """Same agentic loop as the OpenAI path, via `from google import genai`.
+
+    Tool results ride back as function_response parts so the model can iterate
+    exactly like the OpenAI loop does; evidence/trace feed the same UI.
+    """
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError as error:
+        raise RuntimeError(
+            "The 'google-genai' package is not installed. Run "
+            "`pip install -r requirements.txt` and reload the app."
+        ) from error
+
+    api_key = _gemini_api_key()
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not configured. Add it to `.streamlit/secrets.toml` "
+            "(or set it as an environment variable) and reload the app. "
+            "Get a free key at https://aistudio.google.com/apikey — no credit card needed."
+        )
+    client = genai.Client(api_key=api_key)
+    model = _llm_model("gemini")
+
+    base_config = types.GenerateContentConfig(
+        system_instruction=_system_prompt(),
+        tools=[_gemini_tools()],
+        temperature=0.1,
+        max_output_tokens=1200,
+    )
+    # Final round: tools switched off, so the user always gets prose back
+    # instead of a "tool-call limit reached" error.
+    final_config = types.GenerateContentConfig(
+        system_instruction=_system_prompt(),
+        tools=[_gemini_tools()],
+        tool_config=types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(
+                mode=types.FunctionCallingConfigMode.NONE
+            )
+        ),
+        temperature=0.1,
+        max_output_tokens=1200,
+    )
+
+    contents = _gemini_contents(history, user_text)
+    evidence: list[dict] = []
+    trace: list[str] = []
+
+    for round_index in range(MAX_TOOL_ROUNDS):
+        final_round = round_index == MAX_TOOL_ROUNDS - 1
+        response = client.models.generate_content(
+            model=model,
+            contents=contents,
+            config=final_config if final_round else base_config,
+        )
+        function_calls = _gemini_function_calls(response)
+
+        if not function_calls:
+            answer = _gemini_response_text(response)
+            return (
+                answer or "I could not produce an answer. Please rephrase your question.",
+                evidence,
+                trace,
+            )
+
+        # Echo the model's turn (with its function calls) so the follow-up has context.
+        model_content = getattr(response.candidates[0], "content", None)
+        if model_content is not None:
+            contents.append(model_content)
+
+        response_parts = []
+        for function_call in function_calls:
+            tool_name = function_call.name
+            arguments = dict(function_call.args or {})
+            try:
+                result = _call_tool(tool_name, arguments)
+                if tool_name == "run_salesforce_soql":
+                    evidence.append(result)
+                trace.append(_tool_label(tool_name, arguments))
+                payload = _model_payload(tool_name, result)
+            except Exception as error:  # surfaced to the model so it can recover
+                payload = {"error": _clean_salesforce_error(error)}
+                trace.append(f"{_tool_label(tool_name, arguments)} — failed")
+            # A JSON string inside the dict: function_response values must be
+            # JSON-serializable, and this matches what the OpenAI path sends.
+            response_parts.append(
+                types.Part.from_function_response(
+                    name=tool_name,
+                    response={"result": _serialize_for_model(payload)},
+                )
+            )
+        contents.append(types.Content(role="user", parts=response_parts))
+
+    return ("I could not produce an answer. Please rephrase your question.", evidence, trace)
+
+
 def _assistant_reply(user_text: str, history: list[dict]) -> tuple[str, list[dict], list[str]]:
+    provider = _llm_provider()
+    if provider == "gemini":
+        return _assistant_reply_gemini(user_text, history)
     api_key = _openai_api_key()
     if not api_key:
         raise RuntimeError(
@@ -675,13 +927,14 @@ def _assistant_reply(user_text: str, history: list[dict]) -> tuple[str, list[dic
 
     evidence: list[dict] = []
     trace: list[str] = []
+    model = _llm_model("openai")
 
     for round_index in range(MAX_TOOL_ROUNDS):
         # On the final round tools are switched off, so the user always gets prose
         # back instead of a "tool-call limit reached" error.
         final_round = round_index == MAX_TOOL_ROUNDS - 1
         response = client.chat.completions.create(
-            model=CHAT_MODEL,
+            model=model,
             messages=messages,
             tools=TOOLS,
             tool_choice="none" if final_round else "auto",
@@ -795,7 +1048,8 @@ st.caption(
     "Read-only, and scoped to this session."
 )
 
-api_key_present = _openai_api_key() is not None
+provider = _llm_provider()
+api_key_present = _llm_api_key(provider) is not None
 
 with st.sidebar:
     st.subheader("Current session")
@@ -809,10 +1063,16 @@ with st.sidebar:
         st.rerun()
 
 if not api_key_present:
+    _key_name = _llm_key_name(provider)
     st.warning(
-        ":material/key_off: **OPENAI_API_KEY is not configured.** Add it to "
-        "`.streamlit/secrets.toml` as `OPENAI_API_KEY = \"sk-...\"` (or set it as an "
+        f":material/key_off: **{_key_name} is not configured.** Add it to "
+        f"`.streamlit/secrets.toml` as `{_key_name} = \"...\"` (or set it as an "
         "environment variable) and reload the app to enable the chatbot."
+        + (
+            " Get a free key at https://aistudio.google.com/apikey — no credit card needed."
+            if provider == "gemini"
+            else ""
+        )
     )
 
 if not st.session_state["sf_chat_messages"]:
