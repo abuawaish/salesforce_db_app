@@ -484,14 +484,29 @@ def compute_changes(original_df, edited_df):
     return rows_to_update, rows_to_insert
 
 
-def run_records_query(sf, object_name, selected_fields, where_clause):
+def run_records_query(sf, object_name, selected_fields, where_clause, show_warning=True):
     query_fields = get_query_fields(selected_fields)
     field_str = ", ".join(query_fields)
 
     q = f"SELECT {field_str} FROM {object_name}"
 
+
+    if not where_clause:
+        if show_warning:
+            show_temporary_message("No WHERE clause provided. By default, the query will return up to 1000 records.", level="warning")
+        q += " LIMIT 1000"
+
     if where_clause:
-        q += f" WHERE {where_clause}"
+        if not re.search(
+            r"\bLIMIT\s+\d+(?:\s+OFFSET\s+\d+)?\s*$",
+            where_clause,
+            re.IGNORECASE,
+        ):
+            if show_warning:
+                show_temporary_message("You forgot to include a LIMIT statement in your WHERE clause. By default, the query will return up to 1000 records.", level="warning")
+            q += f" WHERE {where_clause} LIMIT 1000"
+        else:
+            q += f" WHERE {where_clause}"
 
     records = sf.query_all(q)["records"]
 
@@ -1347,7 +1362,8 @@ if "edit_df" in st.session_state:
                                 sf,
                                 target_obj,
                                 selected_fields,
-                                clean_filter
+                                clean_filter,
+                                show_warning=False,
                             )
 
                             st.session_state["edit_df"] = new_df
@@ -1452,7 +1468,8 @@ if "edit_df" in st.session_state:
                                 sf,
                                 target_obj,
                                 selected_fields,
-                                clean_filter
+                                clean_filter,
+                                show_warning=False,
                             )
 
                             st.session_state["edit_df"] = new_df
