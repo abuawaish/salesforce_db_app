@@ -108,7 +108,7 @@ Design constraints worth knowing:
 - **Scoped to Salesforce.** Questions unrelated to Salesforce or this app are declined.
 - **Session-bound.** The conversation lives only in your browser session. It is cleared automatically when you disconnect, reconnect, or connect as a different user, so one user's questions and results are never visible to the next.
 - **Bounded reads.** A query without a `LIMIT` automatically receives `LIMIT 100`, so a broad question cannot page through an entire object.
-- Requires an OpenAI API key — see [AI Feature Configuration](#ai-feature-configuration).
+- Requires an LLM API key (Gemini free tier or OpenAI) — see [AI Feature Configuration](#ai-feature-configuration).
 
 ### 9. Governor Limits
 
@@ -136,33 +136,49 @@ Found under the `SF Cloud Code` page:
 
 ## AI Feature Configuration
 
-Two pages use the OpenAI API and need an API key: the “Ask in Plain English” helper on the `Salesforce SOQL Editor` page, and the `SF Chatbot` page. Every other feature works without one.
+Two pages use an LLM and need an API key: the “Ask in Plain English” helper on the `Salesforce SOQL Editor` page, and the `SF Chatbot` page. Every other feature works without one.
+
+Two providers are supported, switched with `LLM_PROVIDER` (`openai` is the default):
+
+- **Gemini (free):** get a key at https://aistudio.google.com/apikey — no credit card needed. Set `LLM_PROVIDER=gemini`.
+- **OpenAI (paid):** the original provider. Omit `LLM_PROVIDER` or set it to `openai`.
 
 Create `.streamlit/secrets.toml` in the repository root:
 
 ```toml
-OPENAI_API_KEY = "sk-your-key-here"
+# Free option — recommended
+LLM_PROVIDER = "gemini"
+GEMINI_API_KEY = "<your-gemini-key>"
+
+# Paid option — uncomment to use OpenAI instead
+# LLM_PROVIDER = "openai"
+# OPENAI_API_KEY = "sk-your-key-here"
+
+# Optional: override the model for either provider
+# LLM_MODEL = "gemini-3.5-flash-lite"
 ```
 
-Alternatively, set it as an environment variable:
+Alternatively, set them as environment variables:
 
 ```bash
-export OPENAI_API_KEY="sk-your-key-here"   # macOS / Linux
-$env:OPENAI_API_KEY = "sk-your-key-here"   # Windows PowerShell
+export LLM_PROVIDER="gemini"               # macOS / Linux
+export GEMINI_API_KEY="<your-gemini-key>"
+$env:LLM_PROVIDER = "gemini"               # Windows PowerShell
+$env:GEMINI_API_KEY = "<your-gemini-key>"
 ```
 
-Without a key, the `SF Chatbot` page shows a configuration notice and disables its input rather than failing at runtime.
+Without a key for the active provider, the `SF Chatbot` page shows a configuration notice and disables its input rather than failing at runtime.
 
 > **Important:** `.streamlit/secrets.toml` is listed in `.gitignore`. Keep it that way — never commit an API key.
 
-### What is sent to OpenAI
+### What is sent to the AI provider
 
 Be deliberate about this before pointing the AI features at a Production org:
 
 - **Sent:** your question, the recent conversation turns, your Salesforce username, your profile name, the org instance hostname, and **the records and field metadata returned by the queries the assistant runs**. If your org holds personal or regulated data, that data may leave your infrastructure.
 - **Never sent:** your Salesforce password, security token, or API session ID. The assistant's own Salesforce access is confined to your existing session.
 
-If this matters for your organization, review your OpenAI account's data-retention terms (and whether you need a Data Processing Agreement or zero-retention configuration) before use, or run the AI features against a sandbox with non-sensitive data.
+If this matters for your organization, review your provider's data-retention terms (OpenAI's DPA/zero-retention options, or Google's Gemini API terms) before use, or run the AI features against a sandbox with non-sensitive data.
 
 ## Repository Structure
 
@@ -251,7 +267,7 @@ Then open the URL shown in your browser (usually `http://localhost:8501`).
 - `INVALID_LOGIN` means your username or password is incorrect, or the org selection is wrong.
 - `security token` errors indicate that a token is required by your Salesforce org.
 - `Could not connect` or `404` errors usually mean the wrong environment was selected (Production vs Sandbox).
-- `OPENAI_API_KEY is not configured` on the `SF Chatbot` page means no key was found in `.streamlit/secrets.toml` or the environment — see [AI Feature Configuration](#ai-feature-configuration).
+- `OPENAI_API_KEY is not configured` (or `GEMINI_API_KEY is not configured` when `LLM_PROVIDER=gemini`) on the `SF Chatbot` page means no key for the active provider was found in `.streamlit/secrets.toml` or the environment — see [AI Feature Configuration](#ai-feature-configuration).
 - If the chatbot reports that the API key was rejected or that a rate limit was reached, the problem is with the OpenAI account rather than the Salesforce connection; check the key and your usage quota.
 
 ## Notes
