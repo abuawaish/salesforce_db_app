@@ -140,7 +140,7 @@ Two pages use an LLM and need an API key: the “Ask in Plain English” helper 
 
 Two providers are supported, switched with `LLM_PROVIDER` (`openai` is the default):
 
-- **Gemini (free):** get a key at https://aistudio.google.com/apikey — no credit card needed. Set `LLM_PROVIDER=gemini`.
+- **Gemini (free):** get a key at <https://aistudio.google.com/apikey> — no credit card needed. Set `LLM_PROVIDER=gemini`.
 - **OpenAI (paid):** the original provider. Omit `LLM_PROVIDER` or set it to `openai`.
 
 Create `.streamlit/secrets.toml` in the repository root:
@@ -319,7 +319,7 @@ OPENAI_API_KEY = "sk-your-key-here"
 - Store secrets securely using environment variables, Streamlit secrets, or a secrets manager rather than hard-coding them into source files. This applies to your OpenAI API key as well — keep it in `.streamlit/secrets.toml`, which is already gitignored.
 - Use least-privilege access when connecting to Salesforce. The app should only be used with accounts that have the minimum permissions needed for the intended operations.
 - Be mindful of data exposure: SOQL results, record edits, and object metadata can contain sensitive business information. Avoid sharing screenshots or exports that include confidential data.
-- The AI features send org data to OpenAI. Review [What is sent to OpenAI](#what-is-sent-to-openai) before enabling them against a Production org.
+- The AI features send org data to the configured AI provider. Review [What is sent to the AI provider](#what-is-sent-to-the-ai-provider) before enabling them against a Production org.
 - Salesforce remains the real permission boundary. The app's Admin mode only unlocks features for users whose Salesforce profile already grants "Modify All Data" or "Customize Application"; it cannot grant access your org does not.
 - If your org enforces IP whitelisting, you can leave the security token blank when your IP is already trusted in Salesforce.
 - When deploying publicly, ensure your app is protected behind authentication and that any hosted environment is configured to avoid leaking session or credential information.
