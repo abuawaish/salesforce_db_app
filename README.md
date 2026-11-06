@@ -32,7 +32,7 @@ Found under the `Configuration` page:
 
 ### 2. SOQL Query Editor
 
-Found under the `Salesforce SOQL Editor` page:
+Found under the `SF SOQL Editor` page:
 
 - Write any valid `SELECT` SOQL query.
 - Use the new “Ask in Plain English” feature to describe the data you want in plain language and generate or refine a SOQL query.
@@ -42,7 +42,7 @@ Found under the `Salesforce SOQL Editor` page:
 
 ### 3. Inline Record Editor
 
-Also on the `Salesforce SOQL Editor` page:
+Also on the `SF SOQL Editor` page:
 
 - Select a Salesforce object and choose fields to display.
 - Load records using an optional `WHERE` clause.
@@ -52,7 +52,7 @@ Also on the `Salesforce SOQL Editor` page:
 
 ### 4. Bulkification
 
-Also on the `Salesforce SOQL Editor` page:
+Also on the `SF SOQL Editor` page:
 
 - Perform bulk record operations in the SOQL editor using Salesforce-compliant batch logic.
 - Select multiple records and apply insert, update, or delete actions together.
@@ -136,7 +136,7 @@ Found under the `SF Cloud Code` page:
 
 ## AI Feature Configuration
 
-Two pages use an LLM and need an API key: the “Ask in Plain English” helper on the `Salesforce SOQL Editor` page, and the `SF Chatbot` page. Every other feature works without one.
+Two pages use an LLM and need an API key: the “Ask in Plain English” helper on the `SF SOQL Editor` page, and the `SF Chatbot` page. Every other feature works without one.
 
 Two providers are supported, switched with `LLM_PROVIDER` (`openai` is the default):
 
@@ -258,7 +258,7 @@ Then open the URL shown in your browser (usually `http://localhost:8501`).
 
 1. Open the app in your browser.
 2. Go to the `Configuration` page and connect to Salesforce.
-3. Use the `Salesforce SOQL Editor` page to run queries and manage records.
+3. Use the `SF SOQL Editor` page to run queries and manage records.
 4. Use the `Field Analysis` page to inspect object metadata and picklist values.
 5. Use the `SF Chatbot` page to ask questions about your org or about Salesforce in plain English, and copy the SOQL it shows into the editor when you want to go deeper.
 
