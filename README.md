@@ -187,7 +187,7 @@ The project is organized around a main app entry point, a small set of shared ut
 - `Home.py` - Main Streamlit entry point, homepage layout, and overall app styling.
 - `permissions.py` - Shared helpers for loading Salesforce profile permissions, applying read-only safeguards, and controlling access to admin-level features.
 - `pages/1_⚙️_Configuration.py` - Connection setup page for authenticating to Salesforce and selecting the environment.
-- `pages/2_📝_Salesforce_SOQL_Editor.py` - SOQL editor for running queries, viewing results, and managing records inline.
+- `pages/2_📝_SF_SOQL_Editor.py` - SOQL editor for running queries, viewing results, and managing records inline.
 - `pages/3_📊_Field_Analysis.py` - Metadata explorer for analyzing fields, relationships, picklists, and field type distributions.
 - `pages/4_📦_Object_Manager.py` - Object and field management experience for creating, editing, and configuring custom metadata.
 - `pages/5_👤_Session_Info.py` - Session diagnostics page showing the active connection details and org information.
