@@ -865,9 +865,9 @@ with btn_col2:
 # Tabs
 tabs = st.tabs(
     [
-        "✨ Create Custom Object",
-        "🔧 Manage Fields",
-        "🛠️ Modify Custom Object",
+        ":material/stars_2: Create Custom Object",
+        ":material/folder_data: Manage Fields",
+        ":material/rebase_edit: Modify Custom Object",
     ]
 )
 
@@ -875,7 +875,7 @@ tabs = st.tabs(
 # TAB 1: Create Custom Object
 # ============================================================
 with tabs[0]:
-    st.markdown('<div class="section-card"><h3>✨ Create Custom Object</h3>', unsafe_allow_html=True)
+    st.markdown('### :material/stars_2: Create Custom Object', unsafe_allow_html=True)
 
     # Object details
     col1, col2 = st.columns(2)
@@ -908,7 +908,7 @@ with tabs[0]:
 
     st.divider()
 
-    st.markdown("#### Fields")
+    st.markdown("#### :material/forms_apps_script: Fields")
     st.caption("Leave a row blank if you do not want to create that field.")
 
     control_col1, control_col2, control_col3 = st.columns([1, 1, 4])
@@ -1009,7 +1009,7 @@ with tabs[0]:
     # Read-Only setting per submission, applied across the fields you
     # just created and the Profiles you pick here.
     # ------------------------------------------------------------
-    st.markdown("#### Default Field-Level Security (FLS) for New Fields")
+    st.markdown("#### :material/security: Default Field-Level Security (FLS) for New Fields")
     st.caption(
         "These FLS settings apply in bulk to every custom field that's "
         "successfully created above — including if one field fails "
@@ -1206,7 +1206,7 @@ with tabs[0]:
 # TAB 2: Manage Fields
 # ============================================================
 with tabs[1]:
-    st.markdown('<div class="section-card"><h3>🔧 Manage Fields</h3>', unsafe_allow_html=True)
+    st.markdown('### :material/folder_data: Manage Fields', unsafe_allow_html=True)
 
     all_objects = get_all_objects(custom_only=False)
     if not all_objects:
@@ -1250,7 +1250,7 @@ with tabs[1]:
                 custom_fields = [field for field in fields if field.get("name", "").endswith(CUSTOM_SUFFIX)]
 
                 st.markdown("---")
-                st.subheader("Modify or Delete a Custom Field")
+                st.subheader(":material/contract_edit: Modify or Delete a Custom Field")
 
                 if not custom_fields:
                     st.info("No custom fields are available for this object.")
@@ -1325,7 +1325,7 @@ with tabs[1]:
 
                                 st.markdown("<br>", unsafe_allow_html=True)
                                 delete_field_flag = st.checkbox("Delete this field")
-                                apply_field_changes = st.form_submit_button("Apply Changes", width="content")
+                                apply_field_changes = st.form_submit_button(":material/wand_stars: Apply Changes", width="content")
 
                                 if apply_field_changes:
                                     try:
@@ -1371,7 +1371,7 @@ with tabs[1]:
 
                 # --- Create New Custom Field ---
                 st.markdown("---")
-                st.subheader("✨ Create New Custom Field")
+                st.subheader(":material/forms_add_on: Create New Custom Field")
                 st.caption(f"Add a new custom field to the **{selected_obj}** object.")
 
                 st.info(
@@ -1620,7 +1620,7 @@ with tabs[1]:
 # TAB 3: Modify Custom Object
 # ============================================================
 with tabs[2]:
-    st.markdown('<div class="section-card"><h3>🛠️ Modify Custom Object</h3>', unsafe_allow_html=True)
+    st.markdown('### :material/rebase_edit: Modify Custom Object', unsafe_allow_html=True)
 
     custom_objects = get_all_objects(custom_only=True)
     if not custom_objects:
@@ -1644,14 +1644,14 @@ with tabs[2]:
             )
 
             if action == "Read":
-                if st.button("Read Object Metadata", width="content"):
+                if st.button(":material/auto_stories: Read Object Metadata", width="content"):
                     try:
                         with st.spinner("Loading object metadata..."):
                             obj_meta = read_custom_object_metadata(custom_obj_selected)
                         obj_json = json.dumps(to_serializable(obj_meta), indent=2)
                         st.json(json.loads(obj_json))
                         st.download_button(
-                            "⬇️ Download as JSON",
+                            ":material/download_2: Download as JSON",
                             data=obj_json,
                             file_name=f"{custom_obj_selected}_metadata.json",
                             mime="application/json",
@@ -1694,7 +1694,7 @@ with tabs[2]:
                             index=0 if getattr(current_meta, "deploymentStatus", "Deployed") == "Deployed" else 1,
                         )
 
-                        update_object_submit = st.form_submit_button("Update Object", width="content")
+                        update_object_submit = st.form_submit_button(":material/edit_square: Update Object", width="content")
 
                         if update_object_submit:
                             if not new_label.strip():
@@ -1715,13 +1715,13 @@ with tabs[2]:
                     notify_error(f"Failed to load or update object metadata: {exc}")
 
             elif action == "Delete":
-                st.warning("⚠️ This action is irreversible.")
+                st.warning(":material/warning: This action is irreversible.")
                 confirmation_text = st.text_input(
                     "Type the exact object API name to confirm deletion",
                     placeholder=custom_obj_selected,
                 )
 
-                if st.button("Delete Object", width="content"):
+                if st.button(":material/delete_forever: Delete Object", width="content"):
                     try:
                         if confirmation_text.strip() != custom_obj_selected:
                             raise ValueError("Confirmation text does not match the selected object API name.")
@@ -1735,14 +1735,14 @@ with tabs[2]:
                         notify_error(f"Failed to delete object: {exc}")
 
             elif action == "Describe":
-                if st.button("Describe Object", width="content"):
+                if st.button(":material/description: Describe Object", width="content"):
                     try:
                         with st.spinner("Describing object..."):
                             description_data = getattr(sf, custom_obj_selected).describe()
                         obj_json = json.dumps(to_serializable(description_data), indent=2)
                         st.json(json.loads(obj_json))
                         st.download_button(
-                            "⬇️ Download as JSON",
+                            ":material/download_2: Download as JSON",
                             data=obj_json,
                             file_name=f"{custom_obj_selected}_describe.json",
                             mime="application/json",
