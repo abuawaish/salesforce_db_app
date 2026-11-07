@@ -88,7 +88,9 @@ APP_CONTEXT = """
             """.strip()
 
 OUT_OF_SCOPE_REPLY = (
-    "I can only help you within this app or Salesforce only, please try in another way."
+    "I can only help with Salesforce and this app — your org's objects, fields and records, "
+    "what a Salesforce feature is, or how a page in SF Query Studio works. "
+    "Could you ask about one of those?"
 )
 
 SUGGESTIONS = (
