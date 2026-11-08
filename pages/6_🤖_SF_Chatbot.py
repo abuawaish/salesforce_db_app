@@ -1030,7 +1030,7 @@ def _assistant_reply(user_text: str, history: list[dict]) -> tuple[str, list[dic
 def _render_evidence(evidence: list[dict]) -> None:
     for result in evidence or []:
         total = result.get("total_size", result.get("returned", 0))
-        with st.expander(f"🔎 SOQL evidence — {total} record(s) matched"):
+        with st.expander(f":material/troubleshoot: SOQL evidence — {total} record(s) matched"):
             st.code(result.get("query", ""), language="sql")
 
             records = result.get("records") or []
@@ -1076,12 +1076,12 @@ provider = _llm_provider()
 api_key_present = _llm_api_key(provider) is not None
 
 with st.sidebar:
-    st.subheader("Current session")
-    st.caption(f"User: {st.session_state.get('username', 'Unknown')}")
-    st.caption(f"Profile: {st.session_state.get('profile_name', 'Unknown')}")
-    st.caption(f"Mode: {st.session_state.get('access_mode', 'Read-Only')}")
-    st.caption("🔒 The chatbot is read-only in every mode — it can only run SELECT queries.")
-    if st.button("🗑️ Clear conversation", width="content", type="secondary"):
+    st.subheader(":material/lightning_stand: Current session")
+    st.caption(f"User: `{st.session_state.get('username', 'Unknown')}`")
+    st.caption(f"Profile: `{st.session_state.get('profile_name', 'Unknown')}`")
+    st.caption(f"Mode: `{st.session_state.get('access_mode', 'Read-Only')}`")
+    st.caption(":material/lock: The chatbot is read-only in every mode — it can only run SELECT queries.")
+    if st.button(":material/clear_all: Clear conversation", width="content", type="secondary"):
         st.session_state["sf_chat_messages"] = []
         st.session_state.pop("sf_chat_pending", None)
         st.rerun()
@@ -1101,7 +1101,7 @@ if not api_key_present:
 
 if not st.session_state["sf_chat_messages"]:
     st.info(
-        "💡 Ask about your org's objects, fields, or records — or about how a page in this app works."
+        ":material/emoji_objects: Ask about your org's objects, fields, or records — or about how a page in this app works."
     )
     suggestion_cols = st.columns(len(SUGGESTIONS), gap="small")
     for position, (col, suggestion) in enumerate(zip(suggestion_cols, SUGGESTIONS)):
