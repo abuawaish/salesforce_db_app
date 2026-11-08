@@ -718,26 +718,26 @@ hero_col, btn_col = st.columns([4, 1])
 with hero_col:
     st.markdown(hero_html, unsafe_allow_html=True)
 with btn_col:
-    if st.button("🔄 Refresh Data", width="content", type="secondary"):
+    if st.button(":material/sync: Refresh Data", width="content", type="secondary"):
         st.cache_data.clear()
         st.rerun()
 
 st.divider()
 
 if info.get("warnings"):
-    with st.expander(f"⚠️ Warnings ({len(info['warnings'])})", expanded=False):
+    with st.expander(f":material/warning: ({len(info['warnings'])})", expanded=False):
         for w in info["warnings"]:
             st.warning(w)
 
 if info.get("errors"):
-    with st.expander(f"🔴 Errors ({len(info['errors'])})", expanded=False):
+    with st.expander(f":material/error: ({len(info['errors'])})", expanded=False):
         for e in info["errors"]:
             st.error(e)
 
 # ------------------------------------------------------------
 # Overview Metrics
 # ------------------------------------------------------------
-st.subheader("📊 Session Overview")
+st.subheader(":material/analytics: Session Overview")
 
 m1, m2, m3, m4 = st.columns(4)
 with m1:
@@ -776,7 +776,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ------------------------------------------------------------
 # Connection Details
 # ------------------------------------------------------------
-with st.expander("🔗 Connection Details", expanded=False):
+with st.expander(":material/link_2: Connection Details", expanded=False):
     conn_rows = [
         ("API Version", info.get("api_version", "N/A")),
         ("Client ID", info.get("client_id", "N/A")),
@@ -791,7 +791,7 @@ with st.expander("🔗 Connection Details", expanded=False):
 # ------------------------------------------------------------
 # User Details
 # ------------------------------------------------------------
-with st.expander("👤 User Details", expanded=True):
+with st.expander(":material/user_attributes: User Details", expanded=False):
     if user:
         field_defs = [
             ("name", "Name"),
@@ -850,7 +850,7 @@ with st.expander("👤 User Details", expanded=True):
 # ------------------------------------------------------------
 # Organization Details
 # ------------------------------------------------------------
-with st.expander("🏢 Organization Details", expanded=True):
+with st.expander(":material/source_environment: Organization Details", expanded=False):
     if org:
         org_rows = []
 
@@ -897,7 +897,7 @@ with st.expander("🏢 Organization Details", expanded=True):
 # ------------------------------------------------------------
 # Session & Metadata
 # ------------------------------------------------------------
-with st.expander("⚙️ Session & Metadata", expanded=False):
+with st.expander(":material/settings: Session & Metadata", expanded=False):
     meta_rows = []
 
     if identity:
@@ -923,7 +923,7 @@ with st.expander("⚙️ Session & Metadata", expanded=False):
 # ------------------------------------------------------------
 # Raw JSON (safe display)
 # ------------------------------------------------------------
-with st.expander("📄 Raw Data (JSON)", expanded=False):
+with st.expander(":material/data_object: Raw Data (JSON)", expanded=False):
     st.json(info, expanded=False)
 
 # ------------------------------------------------------------
