@@ -351,13 +351,13 @@ def _fmt_num(value: float) -> str:
 # Categories keep the "All Limits" list scannable instead of one long wall.
 CATEGORY_RULES: list[tuple[str, tuple[str, ...]]] = [
     # Bulk before API: "DailyBulkApiRequests" matches both, and belongs in Bulk.
-    ("Bulk API", ("bulk",)),
-    ("Storage", ("storage",)),
-    ("API & Callouts", ("api", "callout", "odata", "rest")),
-    ("Apex & Automation", ("apex", "workflow", "queueable", "scheduled", "batch")),
-    ("Streaming & Events", ("streaming", "event", "cometd", "push")),
-    ("Metadata & Tooling", ("metadata", "tooling")),
-    ("Email", ("email",)),
+    (":material/hotel_class: Bulk API", ("bulk",)),
+    (":material/storage: Storage", ("storage",)),
+    (":material/api: API & Callouts", ("api", "callout", "odata", "rest")),
+    (":material/automation: Apex & Automation", ("apex", "workflow", "queueable", "scheduled", "batch")),
+    (":material/notifications: Streaming & Events", ("streaming", "event", "cometd", "push")),
+    (":material/data_object: Metadata & Tooling", ("metadata", "tooling")),
+    (":material/email: Email", ("email",)),
 ]
 
 
@@ -366,7 +366,7 @@ def _category_of(name: str) -> str:
     for label, needles in CATEGORY_RULES:
         if any(needle in lowered for needle in needles):
             return label
-    return "Other"
+    return ":material/category: Other"
 
 
 # Priority limits shown as rings at the top.
@@ -420,7 +420,7 @@ api_version_label = (
 )
 
 st.title("📈 Governor Limits")
-header_caption = f"🟢 Live consumption for {instance_label}"
+header_caption = f":material/flash_on: Live consumption for {instance_label}"
 if api_version_label:
     header_caption += f" · API v{api_version_label}"
 st.caption(header_caption)
@@ -428,12 +428,12 @@ st.caption(header_caption)
 ctrl_refresh, ctrl_auto, _ = st.columns([1, 1, 4])
 
 with ctrl_refresh:
-    if st.button("🔄 Refresh now", width="content", type="secondary"):
+    if st.button(":material/sync: Refresh now", width="content", type="secondary"):
         fetch_limits.clear()  # scoped: don't wipe other pages' caches
         st.rerun()
 
 with ctrl_auto:
-    auto_refresh = st.toggle("⏱️ Auto-refresh (30 s)", value=False)
+    auto_refresh = st.toggle(":material/timer: Auto-refresh (30 s)", value=False)
 
 instance_key = (
     f"{getattr(sf, 'sf_instance', '')}|{getattr(sf, 'sf_version', '')}"
@@ -450,7 +450,7 @@ def render_dashboard() -> None:
         try:
             result = fetch_limits(sf, instance_key)
         except Exception as exc:
-            st.error(f"❌ Could not fetch limits: {exc}")
+            st.error(f":material/error: Could not fetch limits: {exc}")
             return
 
     raw_limits = result.get("limits") if isinstance(result, dict) else None
@@ -536,7 +536,7 @@ def render_dashboard() -> None:
     hot = finite[finite["% Used"] >= 70].sort_values("% Used", ascending=False)
     if not hot.empty:
         with st.container(border=True):
-            st.markdown("**⚠️ Needs attention** — limits already past 70%")
+            st.markdown("**:material/warning: Needs attention** — limits already past 70%")
             for _, row in hot.head(5).iterrows():
                 tone = _tone(row["% Used"])
                 color, soft = TONE_COLORS[tone]
@@ -678,7 +678,7 @@ def render_dashboard() -> None:
         )
 
     if view.empty:
-        st.info("No limits match these filters.")
+        st.info(":material/info: No limits match these filters.")
         return
     if view["% Used"].notna().sum() == 0 and severity != "Unlimited":
         st.info("No finite limits match these filters — try the **Unlimited** view.")
@@ -687,8 +687,8 @@ def render_dashboard() -> None:
     # Group and render — known categories first, "Other" last.
     present = set(view["Category"])
     ordered = [label for label, _ in CATEGORY_RULES if label in present]
-    if "Other" in present:
-        ordered.append("Other")
+    if ":material/category: Other" in present:
+        ordered.append(":material/category: Other")
     for category in ordered:
         _render_group(category, view[view["Category"] == category])
 
@@ -699,14 +699,14 @@ def render_dashboard() -> None:
         ["Consumed", "Remaining", "Max"]
     ].round(0)
     st.download_button(
-        "⬇️ Download as CSV",
+        ":material/download_2: Download as CSV",
         data=export.to_csv(index=False).encode("utf-8"),
         file_name=f"salesforce_governor_limits_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}.csv",
         mime="text/csv",
         width="stretch",
     )
 
-    with st.expander("📄 Table view", expanded=False):
+    with st.expander(":material/table_view: Table view", expanded=False):
         st.dataframe(
             export,
             width="stretch",
