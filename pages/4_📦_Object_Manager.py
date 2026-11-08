@@ -100,19 +100,18 @@ API_NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 # Notification helpers (auto‑dismiss via toast)
 # ------------------------------------------------------------
 def notify_success(msg: str) -> None:
-    st.toast(msg, icon="✅")
+    st.toast(msg, icon=":material/task_alt:")
 
 
 def notify_error(msg: str) -> None:
-    st.toast(msg, icon="❌")
-
+    st.toast(msg, icon=":material/error:")
 
 def notify_warning(msg: str) -> None:
-    st.toast(msg, icon="⚠️")
+    st.toast(msg, icon=":material/warning:")
 
 
 def notify_info(msg: str) -> None:
-    st.toast(msg, icon="ℹ️")
+    st.toast(msg, icon=":material/info:")
 
 
 # ------------------------------------------------------------
@@ -850,17 +849,17 @@ st.caption("Create custom objects, manage custom fields, and perform metadata op
 # Refresh / Clear cache buttons
 btn_spacer, btn_col1, btn_col2 = st.columns([4, 1, 1])
 with btn_col1:
-    if st.button("🔄 Refresh Data", width="content", type="secondary"):
+    if st.button(":material/sync: Refresh Data", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
         st.rerun()
 with btn_col2:
-    if st.button("🗑️ Clear Cache", width="content", type="secondary"):
+    if st.button(":material/delete: Clear Cache", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
-        st.toast("Cache cleared! Data will refresh on next load.", icon="✅")
+        st.toast("Cache cleared! Data will refresh on next load.", icon=":material/task_alt:")
 
 # Tabs
 tabs = st.tabs(
@@ -1016,7 +1015,7 @@ with tabs[0]:
         "validation, the others still get created and still get FLS."
     )
     st.info(
-        "💡 Use **Set Field-Level Security** below to make this field "
+        ":material/emoji_objects: Use **Set Field-Level Security** below to make this field "
         "visible/editable for specific Profiles right away, using the "
         "same **Visible** / **Read-Only** model as Salesforce's native "
         "FLS page. If you skip it, Field-Level Security (FLS) will not apply "
@@ -1091,14 +1090,14 @@ with tabs[0]:
         )
         if _total_grant_calls >= WARN_TOTAL_METADATA_CALLS_AT:
             st.warning(
-                "⚠️ " + _grant_msg + " That's a fairly large number for one submission — "
+                ":material/warning: " + _grant_msg + " That's a fairly large number for one submission — "
                 "consider granting access to fewer Profiles at once if you're "
                 "concerned about your org's daily Metadata API limit."
             )
         else:
             st.caption(_grant_msg)
 
-    if st.button("🚀 Create Object & Fields", width="content", key="create_object_btn"):
+    if st.button(":material/rocket_launch: Create Object & Fields", width="content", key="create_object_btn"):
         try:
             if not obj_label.strip():
                 raise ValueError("Object Label is required.")
@@ -1375,7 +1374,7 @@ with tabs[1]:
                 st.caption(f"Add a new custom field to the **{selected_obj}** object.")
 
                 st.info(
-                    "💡 Use **Set Field-Level Security** below to make this field "
+                    ":material/emoji_objects: Use **Set Field-Level Security** below to make this field "
                     "visible/editable for specific Profiles right away, using the "
                     "same **Visible** / **Read-Only** model as Salesforce's native "
                     "FLS page. If you skip it, Field-Level Security (FLS) will not apply "
@@ -1514,7 +1513,7 @@ with tabs[1]:
                     )
                     if _total_existing_calls >= WARN_TOTAL_METADATA_CALLS_AT:
                         st.warning(
-                            "⚠️ " + _grant_msg_existing + " That's a fairly large number "
+                            ":material/warning: " + _grant_msg_existing + " That's a fairly large number "
                             "for one submission — consider granting access to fewer "
                             "Profiles at once if you're concerned about your org's "
                             "daily Metadata API limit."
@@ -1522,7 +1521,7 @@ with tabs[1]:
                     else:
                         st.caption(_grant_msg_existing)
 
-                if st.button("🚀 Create Custom Field", width="content", key="create_new_field_btn"):
+                if st.button(":material/rocket_launch: Create Custom Field", width="content", key="create_new_field_btn"):
                     try:
                         if not new_field_type:
                             raise ValueError("Field Type is required.")
