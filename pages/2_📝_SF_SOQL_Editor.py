@@ -198,7 +198,7 @@ def generate_soql_from_prompt(object_name: str, user_request: str) -> str:
         field_list = ""
 
     if not selected_object_nl:
-        st.toast("❌ Please select a valid object.")
+        st.toast(":material/error: Please select a valid object.")
     else:
 
         system_prompt = f"""You write Salesforce SOQL queries. You will be given a plain-English
@@ -312,7 +312,7 @@ def show_error(title: str, e: Exception):
     def _clean_exception_text(text: str) -> str:
         return re.sub(r"\s+", " ", text).strip().replace("\\n", "")
 
-    st.error(f"❌ **{title}:** {format_salesforce_error(e)}")
+    st.error(f":material/error: **{title}:** {format_salesforce_error(e)}")
     with st.expander("Show technical details"):
         st.code(_clean_exception_text(str(e)), language="text")
 
@@ -563,13 +563,13 @@ def show_temporary_message(message, level="warning"):
     Uses st.toast() for non-blocking, ephemeral notifications.
     """
     if level == "error":
-        st.toast(message, icon="❌")
+        st.toast(message, icon=":material/error:")
     elif level == "success":
-        st.toast(message, icon="✅")
+        st.toast(message, icon=":material/task_alt:")
     elif level == "info":
-        st.toast(message, icon="ℹ️")
+        st.toast(message, icon=":material/info:")
     else:
-        st.toast(message, icon="⚠️")
+        st.toast(message, icon=":material/warning:")
 
 
 def build_insert_payload(row_dict, createable_fields):
@@ -695,7 +695,7 @@ def validate_bulk_csv_fields(object_name: str, df: pd.DataFrame, operation: str)
 
     elif operation == "delete":
         if "Id" not in csv_fields:
-            errors.append("For bulk deletion, only Id field is required.")
+            errors.append("The 'Id' field is required for bulk deletion; however, it is missing from the uploaded CSV.")
 
         extra_fields = [f for f in csv_fields if f != "Id"]
 
@@ -844,7 +844,7 @@ def run_bulk_operation_with_progress(
     for batch_index, batch_records in enumerate(chunks, start=1):
         if status_placeholder:
             status_placeholder.info(
-                f"Processing batch {batch_index} of {total_batches} "
+                f":material/info: Processing batch {batch_index} of {total_batches} "
                 f"({len(batch_records)} record(s))..."
             )
 
@@ -867,7 +867,7 @@ def run_bulk_operation_with_progress(
 
     if status_placeholder:
         status_placeholder.success(
-            f"Bulk {operation} processing completed for {processed_records} record(s)."
+            f":material/done_all: Bulk {operation} processing completed for {processed_records} record(s)."
         )
 
     return all_results
@@ -909,17 +909,17 @@ st.caption("Run SOQL queries, edit records inline, and perform bulk CSV operatio
 
 btn_spacer, btn_col1, btn_col2 = st.columns([4, 1, 1])
 with btn_col1:
-    if st.button("🔄 Refresh Data", width="content", type="secondary"):
+    if st.button(":material/sync: Refresh Data", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
         st.rerun()
 with btn_col2:
-    if st.button("🗑️ Clear Cache", width="content", type="secondary"):
+    if st.button(":material/delete: Clear Cache", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
-        st.toast("Cache cleared! Data will refresh on next load.", icon="✅")
+        st.toast("Cache cleared! Data will refresh on next load.", icon=":material/task_alt:")
 
 st.divider()
 
@@ -939,7 +939,7 @@ with obj_col:
     object_options = ["Select an object..."] + all_objects
     selected_object = st.selectbox("Object", options=object_options, index=0, key="nl_object_select")
 
-if st.button("🪄 Generate SOQL", type="secondary"):
+if st.button(":material/wand_stars: Generate SOQL", type="secondary"):
     if not nl_request.strip():
         show_temporary_message("Describe what you're looking for first.", level="warning")
     else:
@@ -976,7 +976,7 @@ with st.form("soql_query_form"):
         "💡Press Ctrl+Enter to submit the query."
     )
 
-    run_query_pressed = st.form_submit_button("Run Query", icon="🚀")
+    run_query_pressed = st.form_submit_button("Run Query", icon=":material/rocket_launch:")
 
 if run_query_pressed:
     soql = st.session_state.soql_query_input.strip()
@@ -1005,11 +1005,11 @@ if run_query_pressed:
             show_temporary_message("Query executed successfully!", level="success")
             if records and len(df) != len(records):
                 st.success(
-                    f"✅ {len(records)} record(s) returned → "
+                    f":material/done_all: {len(records)} record(s) returned → "
                     f"{len(df)} row(s) after expanding child relationships"
                 )
             else:
-                st.success(f"✅ {len(df)} records returned")
+                st.success(f":material/done_all: {len(df)} records returned")
 
         except Exception as e:
             show_temporary_message("Exception occurred while executing query.", level="error")
@@ -1037,7 +1037,7 @@ with history_col1:
 
 with history_col2:
     is_pressed = st.button(
-        "Clear History",
+        ":material/clear_all: Clear History",
         on_click=clear_query_history,
         help="Remove all saved SOQL query history.",
         disabled=not st.session_state.soql_history,
@@ -1078,14 +1078,14 @@ if "query_df" in st.session_state and st.session_state["query_df"] is not None:
         csv = df.to_csv(index=False)
 
         st.download_button(
-            label="⬇️ Download as CSV",
+            label=":material/download_2: Download as CSV",
             data=csv,
             file_name="query_results.csv",
             mime="text/csv"
         )
 
     else:
-        st.info("📭 Query returned 0 records (empty dataset).")
+        st.info(":material/delivery_truck_bolt: Query returned 0 records (empty dataset).")
 
 
 st.divider()
@@ -1133,7 +1133,7 @@ filter_clause = st.text_input(
     placeholder="e.g., Name != null",
 )
 
-load_btn = st.button("📂 Load Records for Edit")
+load_btn = st.button(":material/folder_open: Load Records for Edit")
 
 if load_btn:
     if not obj_for_edit:
@@ -1205,7 +1205,7 @@ if "edit_df" in st.session_state:
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("💾 Save Changes (Insert/Update)"):
+        if st.button(":material/save: Save Changes (Insert/Update)"):
             try:
                 target_obj = st.session_state.get("edit_target")
 
@@ -1214,7 +1214,7 @@ if "edit_df" in st.session_state:
 
                 elif "Id" not in edited_df.columns:
                     st.error(
-                        "❌ Internal error: 'Id' column missing from editor data. "
+                        ":material/error: Internal error: 'Id' column missing from editor data. "
                         "Please reload the records."
                     )
 
@@ -1232,7 +1232,7 @@ if "edit_df" in st.session_state:
                     )
                     if (is_insert and blank_mask.any()):
                         st.info(
-                            "ℹ️ Blank rows were ignored. Only rows with at least one "
+                            ":material/info: Blank rows were ignored. Only rows with at least one "
                             "non‑empty field are inserted."
                         )
 
@@ -1292,7 +1292,7 @@ if "edit_df" in st.session_state:
                     # -----------------------------------------------------------------------
 
                     if not rows_to_update and not rows_to_insert:
-                        st.info("ℹ️ No changes detected — nothing to save.")
+                        st.info(":material/info: No changes detected — nothing to save.")
 
                     else:
                         update_success = 0
@@ -1332,7 +1332,7 @@ if "edit_df" in st.session_state:
                             parts.append(f"{insert_success} inserted")
 
                         if parts:
-                            st.success("✅ " + ", ".join(parts) + " successfully!")
+                            st.success(":material/done_all: " + ", ".join(parts) + " successfully!")
 
                         total_failures = len(update_failures) + len(insert_failures)
 
@@ -1342,13 +1342,13 @@ if "edit_df" in st.session_state:
                             )
 
                             if update_failures:
-                                st.subheader("❌ Update Failures")
+                                st.subheader(":material/error: Update Failures")
                                 st.dataframe(
                                     pd.DataFrame(update_failures), width="stretch"
                                 )
 
                             if insert_failures:
-                                st.subheader("❌ Insert Failures")
+                                st.subheader(":material/error: Insert Failures")
                                 st.dataframe(
                                     pd.DataFrame(insert_failures), width="stretch"
                                 )
@@ -1377,7 +1377,7 @@ if "edit_df" in st.session_state:
                             st.rerun()
                         else:
                             st.warning(
-                                "⚠️ Please review the errors above and correct the data. "
+                                ":material/warning: Please review the errors above and correct the data. "
                                 "The table has not been refreshed."
                             )
 
@@ -1390,7 +1390,7 @@ if "edit_df" in st.session_state:
             key="inline_delete_confirm"
         )
 
-        if st.button("🗑️ Delete Checked Rows", disabled=not delete_confirm):
+        if st.button(":material/delete: Delete Checked Rows", disabled=not delete_confirm):
             try:
                 target_obj = st.session_state.get("edit_target")
 
@@ -1399,7 +1399,7 @@ if "edit_df" in st.session_state:
 
                 elif "Id" not in edited_df.columns:
                     st.error(
-                        "❌ Internal error: 'Id' column missing from editor data. "
+                        ":material/error: Internal error: 'Id' column missing from editor data. "
                         "Please reload the records."
                     )
 
@@ -1419,13 +1419,13 @@ if "edit_df" in st.session_state:
                     if not delete_ids:
                         if rows_marked_for_delete.empty:
                             st.info(
-                                f"ℹ️ No rows are currently marked for deletion. "
+                                f":material/info: No rows are currently marked for deletion. "
                                 f"Tick the '{DELETE_COL}' checkbox for the row(s) "
                                 f"you want to delete, then click delete again."
                             )
                         else:
                             st.warning(
-                                "⚠️ Checked rows for deletion have no Salesforce ID. "
+                                ":material/warning: Checked rows for deletion have no Salesforce ID. "
                                 "Only existing records can be deleted; new/unsaved "
                                 "rows will be ignored."
                             )
@@ -1447,12 +1447,12 @@ if "edit_df" in st.session_state:
 
                         if delete_success:
                             st.success(
-                                f"✅ Successfully deleted {delete_success} record(s)."
+                                f":material/done_all: Successfully deleted {delete_success} record(s)."
                             )
 
                         if delete_failures:
                             st.error(
-                                f"❌ {len(delete_failures)} record(s) failed during delete."
+                                f":material/error: {len(delete_failures)} record(s) failed during delete."
                             )
                             st.dataframe(
                                 pd.DataFrame(delete_failures),
@@ -1483,7 +1483,7 @@ if "edit_df" in st.session_state:
                             st.rerun()
                         else:
                             st.warning(
-                                "⚠️ Some deletions failed. Please review the errors above. "
+                                ":material/warning: Some deletions failed. Please review the errors above. "
                                 "The table has not been refreshed."
                             )
 
@@ -1551,11 +1551,11 @@ if uploaded_csv is not None:
             )
 
             for warning in validation_warnings:
-                st.warning("⚠️ " + warning)
+                st.warning(":material/warning: " + warning)
 
             if validation_errors:
                 for err in validation_errors:
-                    st.error("❌ " + err)
+                    st.error(":material/error: " + err)
 
             else:
                 bulk_records = prepare_bulk_records_from_csv(
@@ -1564,11 +1564,11 @@ if uploaded_csv is not None:
                 )
 
                 if not bulk_records:
-                    st.warning("⚠️ No valid records found in uploaded CSV.")
+                    st.warning(":material/warning: No valid records found in uploaded CSV.")
 
                 else:
                     st.info(
-                        f"Ready to perform bulk {bulk_operation.lower()} "
+                        f":material/info: Ready to perform bulk {bulk_operation.lower()} "
                         f"for {len(bulk_records)} record(s) on {bulk_object}."
                     )
 
@@ -1595,7 +1595,7 @@ if uploaded_csv is not None:
                     )
 
                     proceed_bulk = st.button(
-                        f"🚀 Proceed Bulk {bulk_operation}",
+                        f":material/rocket_launch: Proceed Bulk {bulk_operation}",
                         disabled=not confirm_bulk,
                         key=f"proceed_bulk_{bulk_object}_{bulk_operation}"
                     )
@@ -1644,7 +1644,7 @@ if uploaded_csv is not None:
 
                                 failed_df = pd.DataFrame(failed_rows)
 
-                                st.subheader("❌ Failed Records")
+                                st.subheader(":material/error: Failed Records")
 
                                 ROW_PX = 35
                                 HEADER_PX = 38
@@ -1656,7 +1656,7 @@ if uploaded_csv is not None:
                                 failed_csv = failed_df.to_csv(index=False)
 
                                 st.download_button(
-                                    label="⬇️ Download Failed Records",
+                                    label=":material/download_2: Download Failed Records",
                                     data=failed_csv,
                                     file_name=(
                                         f"failed_bulk_"
@@ -1667,7 +1667,7 @@ if uploaded_csv is not None:
                                 )
 
                             if failure_count == 0:
-                                st.success("🎉 All records processed successfully.")
+                                st.success(":material/celebration: All records processed successfully.")
 
                         except Exception as e:
                             show_error(f"Bulk {bulk_operation} failed", e)
