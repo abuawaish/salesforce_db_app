@@ -35,17 +35,19 @@ st.caption("Inspect Salesforce object field metadata and relationships.")
 
 btn_spacer, btn_col1, btn_col2 = st.columns([4, 1, 1])
 with btn_col1:
-    if st.button("🔄 Refresh Data", width="content", type="secondary"):
+    if st.button(":material/sync: Refresh Data", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
+        st.session_state.pop("fa_validation_rules_cache", None)
         st.rerun()
 with btn_col2:
-    if st.button("🗑️ Clear Cache", width="content", type="secondary"):
+    if st.button(":material/delete: Clear Cache", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
-        st.toast("Cache cleared! Data will refresh on next load.", icon="✅")
+        st.session_state.pop("fa_validation_rules_cache", None)
+        st.toast("Cache cleared! Data will refresh on next load.", icon=":material/task_alt:")
 
 st.divider()
 
@@ -378,7 +380,7 @@ if selected_object and selected_object != "-- Select an object to analyze --":
         chart_col1, chart_col2 = st.columns(2)
 
         with chart_col1:
-            st.subheader("📈 Field Type Distribution")
+            st.subheader(":material/monitoring: Field Type Distribution")
             fig_pie = px.pie(
                 stats["field_types_df"],
                 values="Count",
@@ -397,7 +399,7 @@ if selected_object and selected_object != "-- Select an object to analyze --":
             st.plotly_chart(fig_pie, width='stretch')
 
         with chart_col2:
-            st.subheader("📊 Field Statistics")
+            st.subheader(":material/query_stats: Field Statistics")
             stats_df = pd.DataFrame(
                 list(stats["stats_for_bar"].items()),
                 columns=["Category", "Count"]
@@ -449,7 +451,7 @@ if selected_object and selected_object != "-- Select an object to analyze --":
         picklist_fields = [f for f in fields if f["type"] in ["picklist", "multipicklist"]]
 
         if not picklist_fields:
-            st.info(f"ℹ️ No picklist fields found on {selected_object}.")
+            st.info(f":material/info: No picklist fields found on {selected_object}.")
         else:
             st.metric("Total Picklist Fields", len(picklist_fields))
 
@@ -504,9 +506,9 @@ if selected_object and selected_object != "-- Select an object to analyze --":
                     st.dataframe(values_df, width="stretch", height=dynamic_height)
                     st.caption(f"Showing {len(picklist_values)} values.")
                 else:
-                    st.info("This picklist has no defined values (or it is a global picklist).")
+                    st.info(":material/info: This picklist has no defined values (or it is a global picklist).")
             else:
-                st.info("👈 **Please select a picklist field from the dropdown above to view its values.**")
+                st.info(":material/info: **Please select a picklist field from the dropdown above to view its values.**")
 
         st.divider()
 
@@ -524,7 +526,7 @@ if selected_object and selected_object != "-- Select an object to analyze --":
         except Exception as e:
             validation_rules = None
             st.info(
-                "ℹ️ Validation rule details aren't available for this connection "
+                ":material/info: Validation rule details aren't available for this connection "
                 "(the Tooling API may not be enabled for your profile)."
             )
             st.caption(f"Tooling API response: {e}")
@@ -538,13 +540,13 @@ if selected_object and selected_object != "-- Select an object to analyze --":
                     # Rules exist, but none of them name a field on this object
                     # (for example a formula built only from $User or $Profile).
                     st.info(
-                        f"ℹ️ There is no validation rule(s) found on **{selected_object}** "
+                        f":material/info: There is no validation rule(s) found on **{selected_object}** "
                         f"that reference a specific field — {len(validation_rules)} rule(s) "
                         "exist on the object, but none of them name one of its fields."
                     )
                 else:
                     st.info(
-                        f"ℹ️ There is no validation rule(s) found on **{selected_object}**."
+                        f":material/info: There is no validation rule(s) found on **{selected_object}**."
                     )
             else:
                 field_labels = {f["name"]: f["label"] for f in fields}
@@ -574,7 +576,7 @@ if selected_object and selected_object != "-- Select an object to analyze --":
 
                 def _render_rule(rule, badge):
                     active = rule.get("Active", False)
-                    status = "🟢 Active" if active else "⚪ Inactive"
+                    status = ":material/notifications_active: Active" if active else ":material/tab_close_inactive: Inactive"
                     with st.expander(f"{badge} {rule.get('ValidationName', 'Unnamed Rule')} — {status}"):
                         if rule.get("Description"):
                             st.caption(rule["Description"])
@@ -600,10 +602,10 @@ if selected_object and selected_object != "-- Select an object to analyze --":
                     for rule in logic_matches:
                         _render_rule(rule, "📐")
                 else:
-                    st.info("👈 **Please select a field from the dropdown above to see its validation rules.**")
+                    st.info(":material/info: **Please select a field from the dropdown above to see its validation rules.**")
 
     except Exception as e:
-        st.error(f"❌ Failed to analyze object: {e}")
+        st.error(f":material/error: Failed to analyze object: {e}")
         st.code(str(e), language="text")
 else:
-    st.info("👈 **Please select an object from the dropdown above to begin the analysis.**")
+    st.info(":material/info: **Please select an object from the dropdown above to begin the analysis.**")
