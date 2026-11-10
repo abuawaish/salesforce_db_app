@@ -315,6 +315,29 @@ _ACE_POLISH_JS = """
       if (editor && editor.getTheme() !== want) editor.setTheme(want);
     } catch (e) { /* editor not ready yet — the interval retries */ }
   }
+  function killWorker(idoc) {
+    // Ace's built-in syntax checker is years out of date for LWC: its
+    // JavaScript worker flags class fields, @track/@api decorators,
+    // optional chaining and async functions as errors, its HTML worker
+    // demands a doctype LWC templates never have, and .js-meta.xml gets
+    // linted as JavaScript. Salesforce validates on deploy instead (the
+    // page already surfaces those errors with line numbers), so the
+    // worker adds only false positives. Apex files are unaffected (the
+    // Java mode has no worker). Clear the annotations it already
+    // produced, too.
+    try {
+      var view = idoc.defaultView;
+      if (!view || !view.ace) return;
+      var el = idoc.querySelector('.ace_editor');
+      if (!el) return;
+      var editor = view.ace.edit(el);
+      if (!editor) return;
+      var sess = editor.getSession();
+      if (!sess) return;
+      try { sess.setUseWorker(false); } catch (e) { /* no worker API */ }
+      try { sess.clearAnnotations(); } catch (e) { /* nothing to clear */ }
+    } catch (e) { /* editor not ready yet — the interval retries */ }
+  }
   function polish() {
     var mode = appMode();
     var frames = doc.querySelectorAll('iframe');
@@ -331,6 +354,7 @@ _ACE_POLISH_JS = """
           idoc.head.appendChild(style);
         }
         if (mode) applyTheme(idoc, mode);
+        killWorker(idoc);
       } catch (e) { /* not ready yet — the interval retries */ }
     }
   }
@@ -382,8 +406,8 @@ try:
         _load_lists()
 except Exception as exc:
     st.error(f":material/settings_alert: Could not load components via the Tooling API: {exc}")
-    st.caption("The connected user needs API access to the Tooling API. Click below to retry.")
-    if st.button("↻ Retry"):
+    st.caption(":material/emoji_objects: The connected user needs API access to the Tooling API. Click below to retry.")
+    if st.button(":material/refresh: Retry"):
         st.session_state.pop("cc_apex_list", None)
         st.session_state.pop("cc_trigger_list", None)
         st.session_state.pop("cc_lwc_list", None)
@@ -1517,7 +1541,7 @@ with editor:
                     entry["conflict"] = False
                     _panel_rerun = True
             with c3:
-                if st.button(":material/Handshake: Accept Both Changes", width="stretch"):
+                if st.button(":material/handshake: Accept Both Changes", width="stretch"):
                     # Combine the server copy and the saved draft against
                     # their common ancestor. Comment style follows the
                     # file type so conflict markers never break syntax.
@@ -1540,7 +1564,7 @@ with editor:
                     if n_conf:
                         st.session_state[f"cc_feedback_{selected}"] = (
                             "warning",
-                            f"⚠️ Combined both versions, but {n_conf} conflicting "
+                            f":material/warning: Combined both versions, but {n_conf} conflicting "
                             f"section(s) could not be merged automatically — they "
                             f"are marked in the code above. Please review and edit "
                             f"them before deploying.",
@@ -1548,7 +1572,7 @@ with editor:
                     else:
                         st.session_state[f"cc_feedback_{selected}"] = (
                             "success",
-                            "🤝 Both versions combined — server and draft changes "
+                            ":material/handshake: Both versions combined — server and draft changes "
                             "are now in your workspace draft.",
                         )
                     _panel_rerun = True
