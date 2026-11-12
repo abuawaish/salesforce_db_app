@@ -1,5 +1,7 @@
 # Salesforce Query Studio
 
+![SF Query Studio logo](assets/sf-query-studio-logo-final.png)
+
 A Streamlit-based Salesforce toolkit for running SOQL queries, exploring object metadata, and managing records directly from your browser.
 
 <!-- Badges -->
