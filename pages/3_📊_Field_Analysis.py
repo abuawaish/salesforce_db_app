@@ -39,14 +39,12 @@ with btn_col1:
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
-        st.session_state.pop("fa_validation_rules_cache", None)
         st.rerun()
 with btn_col2:
     if st.button(":material/delete: Clear Cache", width="content", type="secondary"):
         st.cache_data.clear()
         st.session_state.pop("fa_describe_cache", None)
         st.session_state.pop("fa_all_objects", None)
-        st.session_state.pop("fa_validation_rules_cache", None)
         st.toast("Cache cleared! Data will refresh on next load.", icon=":material/task_alt:")
 
 st.divider()
