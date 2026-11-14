@@ -12,7 +12,7 @@ A Streamlit-based Salesforce toolkit for running SOQL queries, exploring object 
 
 This app provides a clean, dark-themed interface for:
 
-- Connecting to a Salesforce org using username, password, and optional security token.
+- Connecting to a Salesforce org using an External Client App's Client ID and Client Secret (OAuth 2.0 Client Credentials flow).
 - Running ad hoc `SELECT` SOQL queries and viewing results in an interactive table.
 - Using the new “Ask in Plain English” helper to turn natural-language requests into SOQL queries.
 - Chatting with a read-only Salesforce assistant that answers questions about your connected org and about Salesforce in general.
@@ -28,9 +28,17 @@ This app provides a clean, dark-themed interface for:
 Found under the `Configuration` page:
 
 - Choose between `Production` and `Sandbox` environments.
-- Enter Salesforce username and password.
-- Provide a security token when required by your org.
-- Test the connection and display success or troubleshooting hints.
+- Paste the External Client App's **Client ID** (Consumer Key) and **Client Secret** (Consumer Secret).
+- Optionally override the login host with your My Domain.
+- Connect and display the Run As user, profile, instance URL, and troubleshooting hints.
+
+Authentication uses the OAuth 2.0 Client Credentials flow against
+`/services/oauth2/token`. The legacy SOAP `login()` endpoint is retired for
+API 31.0–64.0 (already unavailable from 65.0), so username/password/security
+token auth is no longer supported. In the External Client App's OAuth settings,
+enable **Client Credentials Flow** and assign a **Run As** user with the
+**API Enabled** permission. Because this flow issues no refresh token, the app
+requests a new access token automatically when the old one expires.
 
 ### 2. SOQL Query Editor
 
@@ -178,7 +186,7 @@ Without a key for the active provider, the `SF Chatbot` page shows a configurati
 Be deliberate about this before pointing the AI features at a Production org:
 
 - **Sent:** your question, the recent conversation turns, your Salesforce username, your profile name, the org instance hostname, and **the records and field metadata returned by the queries the assistant runs**. If your org holds personal or regulated data, that data may leave your infrastructure.
-- **Never sent:** your Salesforce password, security token, or API session ID. The assistant's own Salesforce access is confined to your existing session.
+- **Never sent:** your Salesforce Client Secret or API access token. The assistant's own Salesforce access is confined to your existing session.
 
 If this matters for your organization, review your provider's data-retention terms (OpenAI's DPA/zero-retention options, or Google's Gemini API terms) before use, or run the AI features against a sandbox with non-sensitive data.
 
@@ -197,6 +205,7 @@ The project is organized around a main app entry point, a small set of shared ut
 - `pages/7_📈_Governor_Limits.py` - Live governor-limit consumption dashboard with KPI tiles, usage bars, and 70%-of-quota warnings.
 - `pages/8_🌩️_SF_Cloud_Code.py` - Browser code workspace for Apex classes, triggers, and LWC bundles with deploy-to-org support.
 - `cloud_code.py` - Shared backend for `SF Cloud Code`: Tooling API deploys, Metadata API fallback, trigger and LWC bundle handling, and clean error translation.
+- `configuration.py` - OAuth 2.0 Client Credentials authentication: exchanges the External Client App's Client ID and Client Secret for an access token and refreshes it automatically when it expires.
 - `requirements.txt` - Python dependencies required to run the app.
 - `.gitignore` - Lists files and folders that Git should ignore, such as virtual environments, local secrets, and editor-specific artifacts.
 - `LICENSE` - Contains the open-source license terms for the project.
@@ -249,12 +258,161 @@ streamlit run Home.py
 
 Then open the URL shown in your browser (usually `http://localhost:8501`).
 
+## Creating an External Client App
+
+SF Query Studio authenticates with an **External Client App** using the OAuth
+2.0 Client Credentials flow. You create the app once per org, then copy two
+values — the **Client ID** and **Client Secret** — into the Configuration page.
+
+You need a user with permission to create and manage External Client Apps —
+in most orgs that means **System Administrator**, or a profile with
+**Customize Application** / **Manage Connected Apps**.
+
+### Step 1 — Create the app
+
+1. In Salesforce, open **Setup** (⚙️ → Setup).
+2. In Quick Find, search for **External Client Apps** and open
+   **External Client Apps** under *Apps*.
+3. Click **New External Client App**.
+4. Fill in the basics:
+   - **External Client App Name** — e.g. `SF Query Studio`.
+   - **Contact Email** — an address Salesforce can reach about the app.
+   - **Distribution State** — `Local` is fine for a private/internal app.
+5. Under **API (Enable OAuth Settings)**, check **Enable OAuth**.
+6. Add the **Callback URL**. Client Credentials doesn't redirect anywhere, but
+   Salesforce still requires a value — any HTTPS URL you control works, e.g.
+   `https://localhost/callback`.
+7. Add the OAuth scope **Manage user data via APIs (`api`)**. This is the scope
+   SF Query Studio uses for REST, Bulk, Metadata, and Tooling calls.
+8. Save the app.
+
+### Step 2 — Enable the Client Credentials flow
+
+This is the step that matters most — without it, the token request fails with
+`invalid_grant` or `unsupported_grant_type`.
+
+1. Reopen the External Client App you just created.
+2. Go to **OAuth Settings** (or **Policies** → *OAuth Flows and External Client
+   App Enhancements*, depending on your org's UI).
+3. Under **Flow Enablement**, check **Enable Client Credentials Flow**.
+4. Set **Run As (Username)** to the user the app should act as.
+   - This user is who every token is issued for. Their profile and permissions
+     decide what the app can read and write.
+   - They must be **active** and have the **API Enabled** system permission.
+   - Least privilege applies: use a dedicated integration user rather than an
+     admin if your use case allows it. If you need Object Manager features
+     (creating objects and fields), the Run As user needs **Customize
+     Application** and/or **Modify All Data**.
+5. Check **Permitted Users**. For Client Credentials, `All users may
+   self-authorize` is the usual choice; the Run As assignment above is what
+   actually controls which identity issues tokens.
+6. Save.
+
+### Recommended setting values (Step 2)
+
+Exactly two settings change what SF Query Studio can do: **Enable Client
+Credentials Flow** and **Run As**. Everything else in the OAuth panel can keep
+its default. The table below lists each option so you don't have to guess.
+
+| Setting | Recommended | Why |
+| --- | --- | --- |
+| **Enable Client Credentials Flow** | ✅ Checked (**required**) | The only grant SF Query Studio uses. Leave unchecked and the token request fails with `invalid_grant` / `unsupported_grant_type`. |
+| **Run As (Username)** | Set (**required**) | Decides the identity every token belongs to. Must be active and have **API Enabled**. |
+| **Permitted Users** — `All users may self-authorize` | Safe | The Run As user, not this policy, decides which identity issues tokens. |
+| **Permitted Users** — `Admin approved users are pre-authorized` | Also safe | Stricter. You must add a profile or permission set under **Manage Profiles** / **Manage Permission Sets**; the Run As user must be included. |
+| **Enable Authorization Code and Credentials Flow** | Leave as-is | Not used. Harmless if checked. |
+| **Require user credentials in the POST body for Authorization Code and Credentials Flow** | Leave as-is | Only affects authorization code requests. |
+| **Enable Device Flow** | Leave unchecked | Not used by this app. |
+| **Enable JWT Bearer Flow** | Leave unchecked | Not used. Requires a certificate and a different signing setup. |
+| **Enable Token Exchange Flow** | Leave unchecked | Not used by this app. |
+| **Require secret for Web Server Flow** | Leave as-is | Authorization code only. |
+| **Require secret for Refresh Token Flow** | ✅ Checked (safe default) | No refresh token is ever issued for this flow, so it has no effect. Checked stays correct if the app later adds an authorization code flow. |
+| **Require Proof Key for Code Exchange (PKCE) extension for Supported Authorization Flows** | Leave as-is | Authorization code only. |
+| **Enable Refresh Token Rotation** | Leave as-is | No refresh tokens are issued here. |
+| **Issue JSON Web Token (JWT)-based access tokens for named users** | Leave unchecked | The app expects a standard opaque bearer token. |
+| **Limit Idle Refresh Token Time-to-live (TTL) to 30 Days** | Leave as-is | Salesforce-required; unrelated to refresh tokens here. |
+| **OAuth Start URL** | Leave blank | Only used for interactive flows. |
+| **Custom Scopes** | Leave empty | The standard `api` scope is enough. |
+| **Apex Plugin Class** | Leave empty | Not needed. |
+
+**Required OAuth scope:** `Manage user data via APIs (api)`. The
+`refresh_token` / `offline_access` scope (shown as *"Perform requests at any
+time"*) is **not** required. Client Credentials never returns a refresh token,
+so that scope grants nothing this app can use — but leaving it enabled is
+harmless and won't break the connection. SF Query Studio doesn't send a
+`scope` parameter in its token request, so configured scopes don't affect the
+grant; add only what you actually need for least privilege.
+
+### Step 3 — Copy the Client ID and Client Secret
+
+1. In the External Client App, open **OAuth Settings** →
+   **App Credentials** (or the **Client Credentials** section, depending on UI).
+2. Copy the **Client ID** (Consumer Key). It starts with `3MVG9…`.
+3. Reveal and copy the **Client Secret** (Consumer Secret).
+
+> ⚠️ Treat the Client Secret like a password. Don't commit it to source
+> control, paste it into chat, or put it in a screenshot. If it's exposed,
+> use **Rotate Consumer Secret** in the app and paste the new value into SF
+> Query Studio. SF Query Studio holds the secret only in memory for the life of
+> the browser session.
+
+### Step 4 — Find your My Domain host
+
+Salesforce accepts the Client Credentials grant **only** on your org's My
+Domain — requests to `login.salesforce.com` or `test.salesforce.com` are
+rejected with `invalid_grant: request not supported on this domain`.
+
+1. Go to **Setup** → **Company Settings** → **My Domain**.
+2. Copy the domain, which takes one of these forms:
+
+| Environment | Host format | Example |
+| --- | --- | --- |
+| Production | `<mydomain>.my.salesforce.com` | `acme.my.salesforce.com` |
+| Sandbox | `<mydomain>--<sandbox>.sandbox.my.salesforce.com` | `acme--dev.sandbox.my.salesforce.com` |
+
+Note the **double hyphen** in sandbox domains — it is not a typo.
+
+You can paste the full token URL (`https://…/services/oauth2/token`); the app
+strips the scheme and path automatically.
+
+### Step 5 — Connect
+
+1. Start the app and open the **Configuration** page.
+2. Choose the **Environment** that matches where you created the External
+   Client App.
+3. Paste the **My Domain login host**, **Client ID**, and **Client Secret**.
+4. Click **Connect**.
+
+On success the page shows the Run As user, their profile, the instance URL, and
+the API version. If it fails, the error box names the OAuth error and the Setup
+change that fixes it.
+
+### Checking your setup
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `invalid_grant: request not supported on this domain` | Token requested from `login.salesforce.com` / `test.salesforce.com` | Use your My Domain host (Step 4) |
+| `invalid_grant` (other) | Client Credentials Flow disabled, or no Run As user | Enable the flow and assign a Run As user (Step 2) |
+| `invalid_client_id` | Consumer Key not from an app in this org | Re-copy the Client ID; check Production vs Sandbox |
+| `invalid_client` | Client ID/Secret pair rejected | Rotate the Consumer Secret and reconnect |
+| Connected, but queries fail with permission errors | Run As user lacks API access or object permissions | Grant **API Enabled** and the needed object permissions |
+| `unsupported_grant_type` | App's OAuth settings don't allow this grant | Enable **Client Credentials Flow** |
+
+### A note on who the app acts as
+
+With Client Credentials there is no interactive login, so every browser session
+of SF Query Studio acts as the **same Run As user**. The app's Read-Only/Admin
+toggle can limit what people do through the UI, but Salesforce attributes all
+API activity to that one user, and its permissions are the real ceiling. For a
+multi-user deployment, create one External Client App per team or purpose and
+choose the Run As user deliberately.
+
 ## Salesforce Connection Notes
 
 - Use `Production` for a live org and `Sandbox` for developer/test instances.
-- If your org enforces IP restrictions, include your Salesforce security token.
-- If your IP is already trusted, leave the security token blank.
-- Common connection issues include invalid credentials, missing security token, and selecting the wrong environment.
+- Use the Client ID and Client Secret from an **External Client App** whose OAuth settings have **Client Credentials Flow** enabled and a **Run As** user with API access.
+- Enter your **My Domain** login host (not `login.salesforce.com`) — see [Creating an External Client App](#creating-an-external-client-app).
+- Common connection issues include an invalid Client ID/Secret pair, the Client Credentials flow not being enabled, and selecting the wrong environment.
 
 ## Usage Flow
 
@@ -266,8 +424,9 @@ Then open the URL shown in your browser (usually `http://localhost:8501`).
 
 ## Troubleshooting
 
-- `INVALID_LOGIN` means your username or password is incorrect, or the org selection is wrong.
-- `security token` errors indicate that a token is required by your Salesforce org.
+- `invalid_client_id` means the Consumer Key doesn't match an External Client App in the selected org.
+- `invalid_client` means the Client ID/Secret pair was rejected — rotate the Consumer Secret and retry.
+- `invalid_grant` or `unsupported_grant_type` means the app's OAuth settings don't allow Client Credentials Flow, or no Run As user is assigned.
 - `Could not connect` or `404` errors usually mean the wrong environment was selected (Production vs Sandbox).
 - `OPENAI_API_KEY is not configured` (or `GEMINI_API_KEY is not configured` when `LLM_PROVIDER=gemini`) on the `SF Chatbot` page means no key for the active provider was found in `.streamlit/secrets.toml` or the environment — see [AI Feature Configuration](#ai-feature-configuration).
 - If the chatbot reports that the API key was rejected or that a rate limit was reached, the problem is with the OpenAI account rather than the Salesforce connection; check the key and your usage quota.
@@ -317,13 +476,13 @@ OPENAI_API_KEY = "sk-your-key-here"
 
 ## Security & Privacy
 
-- This app requires Salesforce credentials (username, password, and optionally a security token). Do not commit credentials to version control.
+- This app authenticates with an External Client App's Client ID and Client Secret. Do not commit credentials to version control, and rotate the Consumer Secret if it was ever exposed.
 - Store secrets securely using environment variables, Streamlit secrets, or a secrets manager rather than hard-coding them into source files. This applies to your OpenAI API key as well — keep it in `.streamlit/secrets.toml`, which is already gitignored.
 - Use least-privilege access when connecting to Salesforce. The app should only be used with accounts that have the minimum permissions needed for the intended operations.
 - Be mindful of data exposure: SOQL results, record edits, and object metadata can contain sensitive business information. Avoid sharing screenshots or exports that include confidential data.
 - The AI features send org data to the configured AI provider. Review [What is sent to the AI provider](#what-is-sent-to-the-ai-provider) before enabling them against a Production org.
 - Salesforce remains the real permission boundary. The app's Admin mode only unlocks features for users whose Salesforce profile already grants "Modify All Data" or "Customize Application"; it cannot grant access your org does not.
-- If your org enforces IP whitelisting, you can leave the security token blank when your IP is already trusted in Salesforce.
+- The Consumer Secret is held only in memory for the lifetime of the browser session; it is never written to `st.session_state`, disk, or logs, and disconnect clears it.
 - When deploying publicly, ensure your app is protected behind authentication and that any hosted environment is configured to avoid leaking session or credential information.
 - Review any generated reports, exports, or copied query results before sharing them externally.
 

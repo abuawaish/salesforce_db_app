@@ -61,8 +61,9 @@ OBJECT_NAME_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 APP_CONTEXT = """
                 SF Query Studio is a Streamlit Salesforce utility with these pages:
                 - Home: landing page with an overview of the app.
-                - Configuration: connects to a Production or Sandbox org (username, password, optional security
-                token) and manages/disconnects the current session. The Access Mode toggle also lives here.
+                - Configuration: connects to a Production or Sandbox org (External Client App's Client ID and
+                Client Secret, OAuth 2.0 Client Credentials flow) and manages/disconnects the current session.
+                The Access Mode toggle also lives here.
                 - Salesforce SOQL Editor: writes and runs read-only SELECT queries, generates SOQL from plain
                 English, shows results in a sortable table, exports CSV, and — in Admin mode only — supports
                 inline record editing and bulk operations.
@@ -106,11 +107,13 @@ SUGGESTIONS = (
 # connecting as a different user) must not leave the previous org's questions,
 # answers, or cached object list behind for the next user of this browser tab.
 def _session_fingerprint() -> str:
+    # OAuth 2.0 client credentials: the access token is re-minted
+    # transparently on expiry, so it must NOT be part of the fingerprint
+    # or every token refresh would wipe the conversation.
     return "|".join(
         (
             str(st.session_state.get("username", "")),
             str(getattr(sf, "sf_instance", "")),
-            str(getattr(sf, "session_id", ""))[-8:],
         )
     )
 

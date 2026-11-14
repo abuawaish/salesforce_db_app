@@ -1,6 +1,11 @@
+import html
 import streamlit as st
-from simple_salesforce import Salesforce
 import time
+from configuration import (
+    API_VERSIONS,
+    SalesforceAuthError,
+    connect,
+)
 from permissions import (
     init_access_mode,
     load_permission_profile,
@@ -17,8 +22,11 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-st.title("⚙️ Salesforce Connection")
-st.caption("Connect to your Salesforce org using your username and password.")
+st.title(":material/settings: Salesforce Connection")
+st.caption(
+    "Connect to your Salesforce org with an External Client App using the "
+    "OAuth 2.0 Client Credentials flow."
+)
 
 # ------------------------------------------------------------
 # Custom CSS
@@ -81,50 +89,58 @@ with st.form("config_form"):
     with col2:
         api_version = st.selectbox(
             "API Version",
-            options=(
-                    "59.0", 
-                    "60.0",
-                    "61.0",
-                    "62.0",
-                    "63.0",
-                    "64.0"
-            ),
-            index=0,
-            help="Select the Salesforce API version to use for this connection."
+            options=API_VERSIONS,
+            index=len(API_VERSIONS) - 1,
+            help=(
+                "API version used for REST, Bulk and Metadata calls. "
+                "This does not affect authentication — the Client Credentials "
+                "flow is version-independent."
+            )
         )
 
     if env == "Production":
-        st.info("ℹ️ **Hint:** Use 'Sandbox' if you are connecting to a developer sandbox (test.salesforce.com).")
+        st.info(":material/info: **Hint:** Use 'Sandbox' if the External Client App lives in a developer sandbox (test.salesforce.com).")
     else:
-        st.info("ℹ️ **Hint:** Use 'Production' if you are connecting to a live org (login.salesforce.com).")
+        st.info(":material/info: **Hint:** Use 'Production' if the External Client App lives in a live org (login.salesforce.com).")
 
-    username = st.text_input(
-        "Salesforce Username",
-        placeholder="your.email@company.com"
-    )
-    password = st.text_input(
-        "Password",
-        type="password",
-        placeholder="Your Salesforce password"
-    )
-
-    # Optional security token – visible but clearly optional
-    security_token = st.text_input(
-        "Security Token (optional)",
-        type="password",
-        placeholder="Paste your security token here, or leave blank",
+    login_host = st.text_input(
+        "My Domain login host",
+        placeholder="acme.my.salesforce.com",
         help=(
-            "Required only if your Salesforce org enforces IP restrictions. "
-            "Get it via: Salesforce → Settings → My Personal Information → Reset My Security Token. "
-            "If your IP is already trusted/whitelisted in Salesforce, leave this blank."
-        )
+            "Salesforce only accepts the Client Credentials grant on your org's "
+            "My Domain. Find it in Setup → Company Settings → My Domain.\n\n"
+            "Production: acme.my.salesforce.com\n"
+            "Sandbox: acme--dev.sandbox.my.salesforce.com\n\n"
+            "Pasting the full token URL is fine — the scheme and "
+            "/services/oauth2/token suffix are stripped automatically."
+        ),
+    )
+
+    consumer_key = st.text_input(
+        "Client ID (Consumer Key)",
+        placeholder="3MVG9...",
+        help=(
+            "From Salesforce Setup → External Client Apps → your app → "
+            "OAuth Settings. 'Client ID' and 'Consumer Key' are the same value."
+        ),
+    )
+    consumer_secret = st.text_input(
+        "Client Secret (Consumer Secret)",
+        type="password",
+        placeholder="Paste the Consumer Secret",
+        help=(
+            "Shown once when the app's credentials are created. If you no "
+            "longer have it, use 'Rotate Consumer Secret' in the External "
+            "Client App and paste the new value."
+        ),
     )
 
     st.markdown(
         """<div class="info-box">
-        💡 <strong>No security token?</strong> Leave it blank if your IP address is trusted in Salesforce
-        (Setup → Network Access). Otherwise reset your token via
-        <em>Settings → My Personal Information → Reset My Security Token</em>.
+        💡 <strong>Before you connect:</strong> in the External Client App's OAuth settings, enable
+        <em>Client Credentials Flow</em> and assign a <em>Run As</em> user with the
+        <strong>API Enabled</strong> permission. Client credentials tokens carry no refresh token —
+        this app requests a new one automatically when the old one expires.
         </div>""",
         unsafe_allow_html=True
     )
@@ -133,108 +149,127 @@ with st.form("config_form"):
     if st.session_state.get("config_ok") and "sf" in st.session_state:
         action = st.form_submit_button(":material/exit_to_app: Disconnect", width="content", type="primary")
     else:
-        action = st.form_submit_button(":material/plug_connect: Test Connection", width="content", type="primary")
+        action = st.form_submit_button(":material/plug_connect: Connect", width="content", type="primary")
 
 # ------------------------------------------------------------
-# Handle connection test or disconnect
+# Handle connection or disconnect
 # ------------------------------------------------------------
+_CONNECTION_STATE_KEYS = (
+    "sf", "username", "display_name", "user_id", "org_id", "instance_url",
+    "environment", "api_version", "auth_flow", "profile_name",
+    "can_modify_schema", "access_mode",
+)
+
+
+def _clear_connection_state() -> None:
+    """Drop every trace of a previous connection after a failed attempt, so a
+    stale profile/permission flag can never outlive the session it came from.
+    Widget values are deliberately kept, so the user can fix a typo and retry.
+    """
+    for key in _CONNECTION_STATE_KEYS:
+        st.session_state.pop(key, None)
+    st.session_state["config_ok"] = False
+
+
 if action:
     if st.session_state.get("config_ok") and "sf" in st.session_state:
         # Clear everything: connection, caches, editor drafts, chat history,
         # widget state (including any lingering credential inputs). A new
         # connection — possibly to a different org — must never see stale state.
         st.session_state.clear()
-        st.toast("Successfully disconnected from the Salesforce org.", icon="✅")
+        st.toast("Successfully disconnected from the Salesforce org.", icon=":material/task_alt:")
         time.sleep(1.5)
         st.rerun()
-    elif not username or not password:
-        st.toast("Please enter both username and password.", icon="❌")
+    elif not consumer_key or not consumer_secret:
+        st.toast("Please enter both the Client ID and Client Secret.", icon=":material/error:")
+    elif not login_host.strip():
+        st.toast(
+            "Enter your My Domain login host — Salesforce rejects Client "
+            "Credentials on login.salesforce.com and test.salesforce.com.",
+            icon=":material/error:",
+        )
     else:
         try:
-            with st.spinner("Connecting to Salesforce..."):
-                domain = "login" if env == "Production" else "test"
-
-                # simple_salesforce requires security_token to be a non-None string.
-                # Passing "" works for IP-whitelisted orgs (token is simply not appended).
-                sf = Salesforce(
-                    username=username,
-                    password=password,
-                    security_token=security_token.strip() if security_token else "",
-                    domain=domain,
-                    version=api_version
+            with st.spinner("Requesting an access token..."):
+                conn = connect(
+                    consumer_key,
+                    consumer_secret,
+                    environment=env,
+                    api_version=api_version,
+                    login_host=login_host,
                 )
-                # Lightweight sanity-check call
-                sf.describe()
 
-            # Drop any stale state from a previous session (e.g. reconnecting
-            # without an explicit disconnect), then store the new connection.
-            # This also wipes the username/password/token widget values so
-            # credentials never linger in session state after authentication.
+            # Resolve the Run As user's real Salesforce permissions. With
+            # client credentials there is no interactive login, so look the
+            # user up by the Id carried in the token's identity URL.
+            perm_profile = load_permission_profile(
+                conn.sf,
+                user_id=conn.user_id or None,
+                username=conn.username or None,
+            )
+
+            # Drop any stale state from a previous session, then store the new
+            # connection. This also wipes the Client ID/Secret widget values,
+            # so neither credential lingers in session state after auth — the
+            # secret is only reachable through the connection object's
+            # refresh closure.
             st.session_state.clear()
-            st.session_state["sf"] = sf
+            st.session_state["sf"] = conn.sf
             st.session_state["config_ok"] = True
-            st.session_state["username"] = username
-
-            # Look up the connected user's REAL Salesforce permissions.
-            # This — not any button in this app — is what decides whether
-            # schema-changing pages (Object Manager) are available.
-            perm_profile = load_permission_profile(sf, username)
+            st.session_state["username"] = conn.username or conn.display_name
+            st.session_state["display_name"] = conn.display_name
+            st.session_state["user_id"] = conn.user_id
+            st.session_state["org_id"] = conn.org_id
+            st.session_state["instance_url"] = conn.instance_url
+            st.session_state["environment"] = conn.environment
+            st.session_state["api_version"] = conn.api_version
+            st.session_state["auth_flow"] = "OAuth 2.0 Client Credentials"
             st.session_state["profile_name"] = perm_profile["profile_name"]
             st.session_state["can_modify_schema"] = perm_profile["can_modify_schema"]
             init_access_mode()
 
             st.toast(
-                f"Connected successfully! Authenticated to {env} as {username} "
+                f"Connected to {conn.environment} as {conn.display_name or conn.username} "
                 f"(Profile: {perm_profile['profile_name']})",
-                icon="✅",
+                icon=":material/task_alt:",
             )
             time.sleep(1.5)
             st.rerun()
 
-        except Exception as e:
-            # Clear any previous connection
-            st.session_state["config_ok"] = False
-            st.session_state.pop("sf", None)
-
-            err_str = str(e)
+        except SalesforceAuthError as e:
+            _clear_connection_state()
 
             st.markdown(
                 f"""
                 <div class="error-box">
                     ❌ <strong>Connection failed</strong><br>
-                    <span style="font-size:0.9rem;">{err_str}</span>
+                    <span style="font-size:0.9rem;">{html.escape(str(e))}</span>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
+            if e.hint:
+                st.warning(f":material/troubleshoot: **How to fix it:** {e.hint}")
 
-            # Targeted troubleshooting hints
-            if "INVALID_LOGIN" in err_str:
-                st.warning(
-                    "🔍 **Troubleshooting – Invalid Login:**\n"
-                    "- Double-check your username and password.\n"
-                    "- If your org enforces IP restrictions, add a Security Token above.\n"
-                    "- For sandbox accounts make sure you selected **Sandbox**.\n"
-                    "- Accounts locked after too many attempts — check your email."
-                )
-            elif "security token" in err_str.lower():
-                st.warning(
-                    "🔍 **Troubleshooting – Security Token Required:**\n"
-                    "- Your org requires a security token. Enter it in the **Security Token** field above.\n"
-                    "- Reset it via: Salesforce → Settings → My Personal Information → Reset My Security Token."
-                )
-            elif "UNKNOWN" in err_str or "404" in err_str or "Could not connect" in err_str:
-                st.warning(
-                    "🔍 **Troubleshooting – Wrong Environment:**\n"
-                    "- Verify you selected the correct **Environment** (Production vs Sandbox).\n"
-                    "- Check that your Salesforce org URL matches the selected environment."
-                )
-            else:
-                st.warning(
-                    "🔍 **General troubleshooting:**\n"
-                    "- Verify your credentials and environment selection.\n"
-                    "- Check that your IP is trusted or provide a Security Token."
-                )
+        except Exception as e:
+            # Clear any previous connection state (same as the auth-error path)
+            _clear_connection_state()
+
+            st.markdown(
+                f"""
+                <div class="error-box">
+                    ❌ <strong>Connection failed</strong><br>
+                    <span style="font-size:0.9rem;">{html.escape(str(e))}</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            st.warning(
+                ":material/troubleshoot: **General troubleshooting:**\n"
+                "- Verify the Client ID and Client Secret come from the same External Client App.\n"
+                "- Confirm the Environment matches where the app is defined (Production vs Sandbox).\n"
+                "- Check that Client Credentials Flow is enabled and a Run As user is assigned."
+            )
 
 # ------------------------------------------------------------
 # Persistent connection status banner
@@ -243,11 +278,14 @@ if st.session_state.get("config_ok") and "sf" in st.session_state:
     st.markdown(
         f"""
         <div class="success-box" style="margin-top: 20px;">
-            ✅ <strong>Currently connected</strong> as <code>{st.session_state.get('username', '')}</code>
+            ✅ <strong>Currently connected</strong> as <code>{html.escape(st.session_state.get('username', ''))}</code>
+            &nbsp;·&nbsp; {html.escape(st.session_state.get('environment', ''))}
+            &nbsp;·&nbsp; API v{html.escape(st.session_state.get('api_version', ''))}
+            <br><span style="font-size:0.82rem;">{html.escape(st.session_state.get('auth_flow', ''))} · {html.escape(st.session_state.get('instance_url', ''))}</span>
         </div>
         """,
         unsafe_allow_html=True
     )
     render_access_mode_toggle()
 elif not action:
-    st.caption("Fill in your credentials above and click 'Test Connection' to authenticate.")
+    st.caption("Fill in your External Client App credentials above and click 'Connect' to authenticate.")

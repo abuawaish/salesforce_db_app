@@ -38,18 +38,28 @@ def escape_soql_literal(value: str) -> str:
     return str(value or "").replace("\\", "\\\\").replace("'", "\\'")
 
 
-def load_permission_profile(sf, username: str) -> dict:
+def load_permission_profile(sf, username: str | None = None, user_id: str | None = None) -> dict:
     """
     Query the connected user's real Salesforce permissions.
     Call this once, immediately after a successful login.
+
+    Pass ``user_id`` when it is known — with OAuth client credentials the
+    session acts as a Run As user, and the Id from the token is the only
+    reliable identifier. ``username`` remains as a fallback.
     """
-    safe_username = escape_soql_literal(username)
+    if user_id:
+        where = f"Id = '{escape_soql_literal(user_id)}'"
+    elif username:
+        where = f"Username = '{escape_soql_literal(username)}'"
+    else:
+        return {"profile_name": "Unknown", "can_modify_schema": False}
+
     query = f"""
         SELECT Id, Profile.Name,
                Profile.PermissionsModifyAllData,
                Profile.PermissionsCustomizeApplication
         FROM User
-        WHERE Username = '{safe_username}'
+        WHERE {where}
         LIMIT 1
     """
     result = sf.query(query)
@@ -90,7 +100,7 @@ def render_access_mode_toggle() -> None:
 
     if not can_modify:
         st.sidebar.caption(
-            f"👤 Profile: **{profile_name}**\n\n🔒 Read-Only — this profile has no schema-modification permission."
+            f":material/account_circle: Profile: **{profile_name}**\n\n:material/lock: Read-Only — this profile has no schema-modification permission."
         )
         st.session_state["access_mode"] = "Read-Only"
         return
@@ -108,7 +118,7 @@ def render_access_mode_toggle() -> None:
     st.session_state["access_mode"] = mode
 
     if mode == "Admin":
-        st.sidebar.warning("⚠️ Admin mode active — schema changes are enabled.")
+        st.sidebar.warning(":material/warning: Admin mode active — schema changes are enabled.")
 
 
 def require_admin_mode(feature_name: str = "This feature") -> None:
@@ -123,7 +133,7 @@ def require_admin_mode(feature_name: str = "This feature") -> None:
 
     if not can_modify:
         st.error(
-            f"🔒 **{feature_name} requires elevated (Admin Mode) permissions.**\n\n"
+            f":material/lock: **{feature_name} requires elevated (Admin Mode) permissions.**\n\n"
             f"Your connected Salesforce user's profile (**{profile_name}**) has "
             "neither *Modify All Data* nor *Customize Application*. Ask your "
             "Salesforce admin to grant one of those if you need this."
@@ -132,7 +142,7 @@ def require_admin_mode(feature_name: str = "This feature") -> None:
 
     if access_mode != "Admin":
         st.warning(
-            f"🔒 **{feature_name} is admin-only.** "
+            f":material/lock: **{feature_name} is admin-only.** "
             "Your profile allows it, but you're currently in Read-Only mode. "
             "Switch to **Admin** in the sidebar to continue."
         )

@@ -937,7 +937,7 @@ st.markdown("""
     </div>
     <div class="stat-item">
         <div class="stat-value">AI Agent</div>
-        <div class="stat-label">Grounded Assistant &middot; GPT-4o-mini</div>
+        <div class="stat-label">Grounded Assistant &middot; gemini-3.5-flash-lite</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -964,7 +964,7 @@ FEATURES = [
         "title": "SOQL Query &amp; AI Helper",
         "body": (
             "Write and execute any <strong>SELECT</strong> query with relationship joins. "
-            "Use the built-in <strong>Ask in Plain English</strong> helper (GPT-4o-mini) to translate "
+            "Use the built-in <strong>Ask in Plain English</strong> helper (gemini-3.5-flash-lite) to translate "
             "natural language into validated SOQL."
         ),
     },
@@ -1083,9 +1083,9 @@ STEPS = [
     {
         "title": "Configure",
         "body": (
-            "Open the <strong>Configuration</strong> page. Enter your Salesforce "
-            "username, password, and security token, then click "
-            '<strong>"Test Connection"</strong>.'
+            "Open the <strong>Configuration</strong> page. Paste your External "
+            "Client App's <strong>Client ID</strong> and <strong>Client Secret</strong>, "
+            "then click <strong>\"Connect\"</strong>."
         ),
     },
     {
