@@ -1,5 +1,6 @@
 import base64
 import streamlit as st
+from functools import lru_cache
 from pathlib import Path
 
 # ------------------------------------------------------------
@@ -881,23 +882,30 @@ else:
 # ============================================================
 # Brand icon: the logo as a small inline "emoji" (transparent PNG, base64-embedded
 # so it renders inside the sidebar markdown). Falls back to ☁️ if the file is missing.
-def _brand_icon_html() -> str:
+# The data URI is built once per process (cached): the sidebar + hero helpers used
+# to re-read and re-encode the file on every rerun.
+@lru_cache(maxsize=1)
+def _logo_data_uri() -> str | None:
     try:
         _emoji_path = Path(__file__).parent / "assets" / "sf-query-studio-emoji.png"
-        _data_uri = "data:image/png;base64," + base64.b64encode(_emoji_path.read_bytes()).decode()
-        return f'<img src="{_data_uri}" class="brand-icon-img" alt="">'
+        return "data:image/png;base64," + base64.b64encode(_emoji_path.read_bytes()).decode()
     except Exception:
-        return '<span class="brand-icon">☁️</span>'
+        return None
+
+
+def _brand_icon_html() -> str:
+    _data_uri = _logo_data_uri()
+    if _data_uri:
+        return f'<img src="{_data_uri}" class="brand-icon-img" alt="">'
+    return '<span class="brand-icon">☁️</span>'
 
 
 # Hero title icon: reuse the branding image used in the sidebar.
 def _hero_logo_html() -> str:
-    try:
-        _emoji_path = Path(__file__).parent / "assets" / "sf-query-studio-emoji.png"
-        _data_uri = "data:image/png;base64," + base64.b64encode(_emoji_path.read_bytes()).decode()
+    _data_uri = _logo_data_uri()
+    if _data_uri:
         return f'<img src="{_data_uri}" alt="">'
-    except Exception:
-        return '☁️'
+    return '☁️'
 
 
 with st.sidebar:
