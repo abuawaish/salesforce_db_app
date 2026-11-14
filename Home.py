@@ -1,11 +1,13 @@
+import base64
 import streamlit as st
+from pathlib import Path
 
 # ------------------------------------------------------------
 # Page Configuration
 # ------------------------------------------------------------
 st.set_page_config(
     page_title="SF Query Studio Home",
-    page_icon="☁️",
+    page_icon="assets/sf-query-studio-emoji.png",
     layout="wide",
     initial_sidebar_state="auto",
     menu_items={
@@ -165,6 +167,11 @@ a:focus-visible {
 }
 .sidebar-brand-title .brand-icon {
     font-size: 1.3rem;
+}
+.sidebar-brand-title .brand-icon-img {
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 4px;
 }
 .sidebar-brand-version {
     background: var(--accent-soft-solid);
@@ -360,6 +367,11 @@ a:focus-visible {
 }
 .hero-title .title-cloud {
     color: inherit;
+}
+.hero-title .title-cloud img {
+    height: 1em;
+    width: 1em;
+    vertical-align: -0.12em;
 }
 .hero-title .title-accent {
     background: linear-gradient(135deg, var(--accent) 0%, #F97316 100%);
@@ -867,11 +879,32 @@ else:
 # ============================================================
 # SIDEBAR: Branding
 # ============================================================
+# Brand icon: the logo as a small inline "emoji" (transparent PNG, base64-embedded
+# so it renders inside the sidebar markdown). Falls back to ☁️ if the file is missing.
+def _brand_icon_html() -> str:
+    try:
+        _emoji_path = Path(__file__).parent / "assets" / "sf-query-studio-emoji.png"
+        _data_uri = "data:image/png;base64," + base64.b64encode(_emoji_path.read_bytes()).decode()
+        return f'<img src="{_data_uri}" class="brand-icon-img" alt="">'
+    except Exception:
+        return '<span class="brand-icon">☁️</span>'
+
+
+# Hero title icon: reuse the branding image used in the sidebar.
+def _hero_logo_html() -> str:
+    try:
+        _emoji_path = Path(__file__).parent / "assets" / "sf-query-studio-emoji.png"
+        _data_uri = "data:image/png;base64," + base64.b64encode(_emoji_path.read_bytes()).decode()
+        return f'<img src="{_data_uri}" alt="">'
+    except Exception:
+        return '☁️'
+
+
 with st.sidebar:
-    st.markdown("""
+    st.markdown(f"""
     <div class="sidebar-brand">
         <div class="sidebar-brand-title">
-            <span class="brand-icon">☁️</span> SF Query Studio
+            {_brand_icon_html()} SF Query Studio
             <span class="sidebar-brand-version">v2.0</span>
         </div>
         <p class="sidebar-brand-sub">Salesforce Data Workbench</p>
@@ -894,13 +927,13 @@ st.markdown(f"""
 # ============================================================
 # HERO SECTION
 # ============================================================
-st.markdown("""
+st.markdown(f"""
 <div class="hero-wrapper">
     <div class="hero-eyebrow">
         <span class="live-dot"></span> Streamlit &middot; simple-salesforce &middot; REST &amp; Metadata API
     </div>
     <h1 class="hero-title">
-        <span class="title-cloud">☁️ </span><span class="title-accent">SF Query Studio</span>
+        <span class="title-cloud">{_hero_logo_html()} </span><span class="title-accent">SF Query Studio</span>
     </h1>
     <p class="hero-sub">
         Query, browse, and edit your Salesforce data straight from your
