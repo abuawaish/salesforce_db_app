@@ -143,7 +143,7 @@ def formula_field_references(formula: str, field_lookup: dict) -> set:
     return {field_lookup[token] for token in tokens & field_lookup.keys()}
 
 
-def group_rules_by_field(validation_rules: list, field_names) -> dict:
+def group_rules_by_field(validation_rules: list, field_names, field_labels=None) -> dict:
     """Map field API name -> the validation rules associated with that field.
 
     A rule is associated with a field when it displays its error there
@@ -154,16 +154,28 @@ def group_rules_by_field(validation_rules: list, field_names) -> dict:
     Substring matching is deliberately avoided: a plain `"Name" in formula` test
     also fires on LastName, AccountName, and error text, which would put nearly
     every field in the dropdown.
+
+    ErrorDisplayField may hold the field's API name (Get_Data__c) or its label
+    ("Get Data") — the Tooling API returns the label. It is resolved against
+    both, case-insensitively; an API-name match wins if a label ever collides
+    with another field's API name.
     """
     field_lookup = {name.lower(): name for name in field_names}
+    display_lookup = dict(field_lookup)
+    for api_name, label in (field_labels or {}).items():
+        if label:
+            display_lookup.setdefault(str(label).lower(), api_name)
     grouped = {}
 
     for rule in validation_rules:
         associated = {}
 
         display_field = rule.get("ErrorDisplayField")
-        if display_field in field_names:
-            associated[display_field] = "display"
+        display_name = (
+            display_lookup.get(str(display_field).lower()) if display_field else None
+        )
+        if display_name:
+            associated[display_name] = "display"
 
         for name in formula_field_references(rule.get("ErrorConditionFormula"), field_lookup):
             associated.setdefault(name, "logic")
@@ -520,7 +532,8 @@ if selected_object and selected_object != "-- Select an object to analyze --":
         )
 
         try:
-            validation_rules = get_validation_rules(selected_object)
+            with st.spinner(f"Fetching validation rules for **{selected_object}**..."):
+                validation_rules = get_validation_rules(selected_object)
         except Exception as e:
             validation_rules = None
             st.info(
@@ -531,7 +544,11 @@ if selected_object and selected_object != "-- Select an object to analyze --":
 
         if validation_rules is not None:
             field_names = {f["name"] for f in fields}
-            rules_by_field = group_rules_by_field(validation_rules, field_names)
+            rules_by_field = group_rules_by_field(
+                validation_rules,
+                field_names,
+                {f["name"]: f.get("label") for f in fields},
+            )
 
             if not rules_by_field:
                 if validation_rules:
