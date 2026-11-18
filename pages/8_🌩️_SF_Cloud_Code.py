@@ -911,6 +911,7 @@ with picker:
                     key=f"cc_ws_open_{key}",
                     width="content",
                     type="secondary",
+                    wrap=True,
                 ):
                     _select_from_workspace(key)
                     st.rerun()
