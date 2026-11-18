@@ -362,10 +362,29 @@ def change_counts(workspace: dict) -> dict:
 # Diff
 # ------------------------------------------------------------
 
+def _diff_lines(text: str) -> list[str]:
+    """Split source text into lines for diffing, preserving trailing blank lines.
+
+    ``str.splitlines()`` drops the empty string after a final newline, so a
+    file that differs from the server only by trailing newline(s) diffed as
+    +0 — and every trailing blank line was under-counted by one (one added
+    blank line invisible, two shown as one). Splitting on ``"\\n"`` keeps
+    the trailing empty element(s): ``"a\\n"`` -> ``["a", ""]``, so both sides
+    are measured on the same footing and a trailing-newline-only change
+    shows up as the added/removed empty line it really is. Line endings
+    are normalised first (``\\r\\n``/``\\r`` -> ``\\n``) so a CRLF copy and
+    an LF copy of the same content still diff as identical, as they did
+    under ``splitlines()``.
+    """
+    if not text:
+        return []
+    return text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
+
 def diff_stats(original: str, current: str) -> tuple[int, int]:
     """(added, removed) line counts between two source texts."""
     diff = difflib.unified_diff(
-        (original or "").splitlines(), (current or "").splitlines(), lineterm=""
+        _diff_lines(original or ""), _diff_lines(current or ""), lineterm=""
     )
     added = removed = 0
     for line in diff:
@@ -379,8 +398,8 @@ def diff_stats(original: str, current: str) -> tuple[int, int]:
 def unified_diff(original: str, current: str, from_name: str, to_name: str) -> list[str]:
     return list(
         difflib.unified_diff(
-            (original or "").splitlines(),
-            (current or "").splitlines(),
+            _diff_lines(original or ""),
+            _diff_lines(current or ""),
             fromfile=from_name,
             tofile=to_name,
             lineterm="",
@@ -397,8 +416,8 @@ def diff_rows(original: str, current: str, context: int = 3) -> list[dict]:
     ``None`` on the side a row doesn't exist on. Unchanged stretches are
     folded into "hunk" separator rows, unified-diff style.
     """
-    a = (original or "").splitlines()
-    b = (current or "").splitlines()
+    a = _diff_lines(original or "")
+    b = _diff_lines(current or "")
     matcher = difflib.SequenceMatcher(a=a, b=b, autojunk=False)
     rows: list[dict] = []
     for group in matcher.get_grouped_opcodes(context):
