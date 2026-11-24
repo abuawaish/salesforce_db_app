@@ -484,6 +484,91 @@ def compute_changes(original_df, edited_df):
     return rows_to_update, rows_to_insert
 
 
+def ensure_default_limit(query: str, default_limit: int = 1000) -> tuple[str, bool]:
+    """
+    Append `LIMIT <default_limit>` to a SOQL SELECT query that has none.
+
+    Same default as Section 2 (Record Editor): a query without a LIMIT
+    returns up to 1000 records instead of everything. Returns
+    (effective_query, limit_added).
+
+    Only a top-level LIMIT counts: one inside a subquery
+    (`SELECT Id, (SELECT Id FROM Contacts LIMIT 5) FROM Account`) or inside
+    a string literal (`WHERE Name = 'LIMIT 10'`) does not stop the default
+    from being added. When the query has a top-level OFFSET but no LIMIT,
+    the LIMIT is inserted before the OFFSET (SOQL requires LIMIT first);
+    a trailing FOR VIEW / FOR UPDATE / FOR REFERENCE clause stays last.
+    """
+    text = (query or "").strip()
+    if not text:
+        return query, False
+
+    # Blank out single-quoted string literals (SOQL escapes a quote as \')
+    # and track the parenthesis depth at every position, so a LIMIT, OFFSET
+    # or FOR inside a literal or a subquery is never mistaken for top-level.
+    masked: list[str] = []
+    depth_at: list[int] = []
+    depth = 0
+    in_string = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        depth_at.append(depth)
+        if in_string:
+            masked.append(" ")
+            if ch == "\\" and i + 1 < len(text):
+                # Escaped character inside the literal — blank it too.
+                masked.append(" ")
+                depth_at.append(depth)
+                i += 2
+                continue
+            if ch == "'":
+                in_string = False
+        else:
+            if ch == "'":
+                in_string = True
+                masked.append(" ")
+            elif ch == "(":
+                depth += 1
+                masked.append(ch)
+            elif ch == ")":
+                depth = max(0, depth - 1)
+                masked.append(ch)
+            else:
+                masked.append(ch)
+        i += 1
+    masked_text = "".join(masked)
+
+    def _top_level(pattern: str) -> re.Match | None:
+        for m in re.finditer(pattern, masked_text, re.IGNORECASE):
+            if depth_at[m.start()] == 0:
+                return m
+        return None
+
+    if _top_level(r"\bLIMIT\s+\d+"):
+        return query, False
+
+    # A trailing semicolon is not valid SOQL — drop it so the LIMIT lands
+    # on the query instead of after a stray ";".
+    stripped = text.rstrip()
+    if stripped.endswith(";"):
+        stripped = stripped[:-1].rstrip()
+    insert_at = len(stripped)
+
+    offset_m = _top_level(r"\bOFFSET\s+\d+")
+    for_m = _top_level(r"\bFOR\s+(?:VIEW|UPDATE|REFERENCE)\b")
+    anchors = [m.start() for m in (offset_m, for_m) if m is not None]
+    if anchors:
+        insert_at = min(anchors)
+
+    prefix = stripped[:insert_at].rstrip()
+    suffix = stripped[insert_at:].lstrip()
+    effective = f"{prefix} LIMIT {default_limit}"
+    if suffix:
+        effective += f" {suffix}"
+    return effective, True
+
+
 def run_records_query(sf, object_name, selected_fields, where_clause, show_warning=True):
     query_fields = get_query_fields(selected_fields)
     field_str = ", ".join(query_fields)
@@ -973,7 +1058,7 @@ with st.form("soql_query_form"):
     )
 
     st.caption(
-        "💡Press Ctrl+Enter to submit the query."
+        "💡 Press Ctrl+Enter to submit the query. Queries without a LIMIT run with LIMIT 1000 by default."
     )
 
     run_query_pressed = st.form_submit_button("Run Query", icon=":material/rocket_launch:")
@@ -985,8 +1070,19 @@ if run_query_pressed:
     else:
         add_query_history(soql)
 
+        # Same default as Section 2 (Record Editor): no LIMIT means
+        # LIMIT 1000. History keeps the query exactly as typed; the
+        # default is applied only to the query actually executed.
+        effective_soql, limit_added = ensure_default_limit(soql)
+        if limit_added:
+            show_temporary_message(
+                "No LIMIT in your query — added LIMIT 1000 by default. "
+                "The query will return up to 1000 records.",
+                level="warning",
+            )
+
         try:
-            result = sf.query_all(soql)
+            result = sf.query_all(effective_soql)
             records = result["records"]
 
             if records:
