@@ -27,6 +27,7 @@ Design
 Everything here is UI-free and unit-testable; the page file only renders.
 """
 
+from contextlib import contextmanager
 import difflib
 import io
 import json
@@ -304,6 +305,21 @@ def new_lwc_entry(bundle: str, bundle_id: str | None, resource_id: str | None,
     }
 
 
+def read_deploy_baseline(sf, entry):
+    """Use the same source representation as the editor's original snapshot."""
+    if entry["kind"] == "lwc":
+        rec = fetch_lwc_resource(sf, entry["id"])
+        return {**rec, "body": rec["source"]}
+    if entry["kind"] == "trigger":
+        return fetch_trigger_body(sf, entry["id"])
+    return fetch_apex_body(sf, entry["id"])
+
+
+def has_merge_markers(text):
+    return any(re.match(r"^\s*(?://|/\*|<!--)\s*(?:<{7} SERVER VERSION|={7}(?:\s|$)|>{7} DRAFT VERSION)", line)
+               for line in text.splitlines())
+
+
 def is_gone_error(exc: Exception) -> bool:
     """True when the failure means 'that org record no longer exists'.
 
@@ -331,7 +347,7 @@ def file_status(entry: dict) -> str:
         # Checked first: a deleted org copy supersedes conflict/modified
         # — the local draft is now the only copy, whatever it was.
         return "D"
-    if entry.get("conflict"):
+    if entry.get("conflict") or entry.get("manual_merge"):
         return "C"
     if entry.get("is_new"):
         return "U"
@@ -379,6 +395,102 @@ def _diff_lines(text: str) -> list[str]:
     if not text:
         return []
     return text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
+
+def merge_three_way(base: str, server: str, draft: str,
+                     mark_open: str = "//", mark_close: str = "") -> tuple[str, int]:
+    """Three-way line merge of the server copy and the saved draft against
+    their common ancestor (the previously fetched copy).
+
+    - A region changed by only one side is taken from that side.
+    - A region changed identically by both sides is taken once.
+    - A region changed differently by both sides keeps BOTH versions,
+      wrapped in comment markers, and counts as one manual conflict.
+    Returns (merged_text, manual_conflict_count). Nothing is silently
+    overwritten: the caller reports the count so the user knows review
+    is required, and the markers stay in the code until edited out.
+    """
+    base_lines = base.split("\n")
+    server_lines = server.split("\n")
+    draft_lines = draft.split("\n")
+
+    def _hunks(lines: list[str]) -> list[tuple[int, int, list[str]]]:
+        out = []
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
+                None, base_lines, lines, autojunk=False).get_opcodes():
+            if tag != "equal":
+                out.append((i1, i2, lines[j1:j2]))
+        return out
+
+    # (base_start, base_end, side, replacement) — side 0 = server, 1 = draft.
+    all_hunks = [(s, e, 0, rep) for (s, e, rep) in _hunks(server_lines)]
+    all_hunks += [(s, e, 1, rep) for (s, e, rep) in _hunks(draft_lines)]
+    all_hunks.sort(key=lambda h: (h[0], h[1], h[2]))
+
+    def _overlaps(a: tuple, b: tuple) -> bool:
+        s1, e1, s2, e2 = a[0], a[1], b[0], b[1]
+        if s1 == e1 and s2 == e2:
+            return s1 == s2  # two insertions at the same point
+        if s1 == e1:
+            return s2 < s1 < e2  # insertion inside the other's span
+        if s2 == e2:
+            return s1 < s2 < e1
+        return s1 < e2 and s2 < e1
+
+    merged: list[str] = []
+    conflicts = 0
+    i = 0  # next untouched base line
+    k = 0
+    while k < len(all_hunks):
+        group = [all_hunks[k]]
+        k += 1
+        grown = True
+        while grown and k < len(all_hunks):
+            grown = False
+            for h in group:
+                if _overlaps(h, all_hunks[k]):
+                    group.append(all_hunks[k])
+                    k += 1
+                    grown = True
+                    break
+        g_start = min(h[0] for h in group)
+        g_end = max(h[1] for h in group)
+        if g_start > i:
+            merged.extend(base_lines[i:g_start])
+        if len({h[2] for h in group}) == 1:
+            for h in sorted(group, key=lambda x: (x[0], x[1])):
+                merged.extend(h[3])
+        else:
+            def complete_side(side):
+                lines = []
+                cursor = g_start
+                for start, end, which, replacement in group:
+                    if which == side:
+                        lines.extend(base_lines[cursor:start])
+                        lines.extend(replacement)
+                        cursor = end
+                lines.extend(base_lines[cursor:g_end])
+                return lines
+
+            srv_rep = complete_side(0)
+            dft_rep = complete_side(1)
+            if srv_rep == dft_rep:
+                merged.extend(srv_rep)
+            else:
+                conflicts += 1
+                merged.append(
+                    f"{mark_open} <<<<<<< SERVER VERSION "
+                    f"(manual resolution required){mark_close}")
+                merged.extend(srv_rep)
+                merged.append(f"{mark_open} ======={mark_close}")
+                merged.extend(dft_rep)
+                merged.append(
+                    f"{mark_open} >>>>>>> DRAFT VERSION "
+                    f"(manual resolution required){mark_close}")
+        i = max(i, g_end)
+    if i < len(base_lines):
+        merged.extend(base_lines[i:])
+    return "\n".join(merged), conflicts
 
 
 def diff_stats(original: str, current: str) -> tuple[int, int]:
@@ -566,7 +678,8 @@ class ToolingDeployError(Exception):
     rejected the code — retrying through another deploy path would fail
     identically, so callers must not fall back in that case."""
 
-    def __init__(self, rows: list[dict], *, compile_failure: bool = False):
+    def __init__(self, rows: list[dict], *, compile_failure: bool = False, allow_fallback: bool = False):
+        self.allow_fallback = allow_fallback
         self.rows = rows
         self.compile_failure = compile_failure
         super().__init__(rows[0]["message"] if rows else "Deploy failed.")
@@ -621,7 +734,12 @@ def _container_step(description: str, fn):
     except Exception as exc:
         rows = parse_deploy_error(exc)
         rows[0] = {**rows[0], "message": f"{description}: {rows[0]['message']}"}
-        raise ToolingDeployError(rows) from exc
+        errors = getattr(exc, "content", None)
+        rejected_container = isinstance(errors, list) and any(
+            isinstance(error, dict) and error.get("errorCode") == "INVALID_CROSS_REFERENCE_KEY"
+            for error in errors
+        )
+        raise ToolingDeployError(rows, allow_fallback=rejected_container) from exc
 
 
 def _deploy_apex_container(sf, class_id: str, body: str, *,
@@ -678,77 +796,180 @@ def _deploy_apex_container(sf, class_id: str, body: str, *,
                 "message": f"ContainerAsyncRequest creation returned no Id: {request!r}",
                 "line": None, "column": None,
             }])
-        deadline = time.time() + timeout_s
-        while True:
-            status = sf.toolingexecute(
-                f"sobjects/ContainerAsyncRequest/{request_id}", method="GET"
-            ) or {}
-            state = status.get("State") or ""
-            if state in _CONTAINER_DONE_STATES:
-                return
-            if state in _CONTAINER_FAIL_STATES:
-                rows = _parse_compiler_errors(status.get("CompilerErrors"))
-                from_compiler = bool(rows)
-                if not rows and status.get("ErrorMsg"):
-                    rows = [{
-                        "message": status["ErrorMsg"],
-                        "line": None, "column": None,
-                    }]
-                if not rows:
-                    # The sobject GET sometimes returns the request with
-                    # its diagnostic fields empty; re-read them via SOQL,
-                    # which returns the long-text fields in full.
-                    try:
-                        q = sf.toolingexecute(
-                            "query/",
-                            params={"q": (
-                                "SELECT State, ErrorMsg, CompilerErrors "
-                                "FROM ContainerAsyncRequest "
-                                f"WHERE Id = '{request_id}'"
-                            )},
-                        )
-                        recs = (q or {}).get("records") or []
-                        if recs:
-                            rows = _parse_compiler_errors(recs[0].get("CompilerErrors"))
-                            from_compiler = bool(rows)
-                            if not rows and recs[0].get("ErrorMsg"):
-                                rows = [{
-                                    "message": recs[0]["ErrorMsg"],
-                                    "line": None, "column": None,
-                                }]
-                    except Exception:
-                        pass
-                if rows:
-                    # Only genuine compiler output marks this a compile
-                    # failure (no fallback); an ErrorMsg-only or detail-
-                    # less rejection may still succeed via Metadata API.
-                    raise ToolingDeployError(rows, compile_failure=from_compiler)
-                raise ToolingDeployError([{
-                    "message": (
-                        f"Apex compilation {state.lower()}, but Salesforce "
-                        f"returned no error detail for the request "
-                        f"(ContainerAsyncRequest {request_id})."
-                    ),
+        job = {"api": "Tooling", "id": request_id, "container": container_id}
+        _wait_for_deployment(sf, job, timeout_s, poll_s)
+    except DeploymentPending:
+        # The server still owns the working copy. Clean it up at terminal status.
+        raise
+    except Exception:
+        _remove_container(sf, container_id)
+        raise
+    else:
+        _remove_container(sf, container_id)
+
+
+class DeploymentPending(Exception):
+    """An accepted request whose terminal result is not known yet."""
+
+    def __init__(self, job, state):
+        self.job = dict(job)
+        self.state = state
+        super().__init__(f"{job['api']} request {job['id']}: {state}")
+
+
+def _remove_container(sf, container_id):
+    try:
+        sf.toolingexecute(f"sobjects/MetadataContainer/{container_id}", method="DELETE")
+    except Exception:
+        pass  # Terminal result is authoritative even if cleanup fails.
+
+
+def _tooling_state(sf, request_id):
+    status = sf.toolingexecute(
+        f"sobjects/ContainerAsyncRequest/{request_id}", method="GET"
+    ) or {}
+    state = status.get("State") or ""
+    if state in _CONTAINER_DONE_STATES:
+        return None
+    if state in _CONTAINER_FAIL_STATES:
+        rows = _parse_compiler_errors(status.get("CompilerErrors"))
+        from_compiler = bool(rows)
+        if not rows and status.get("ErrorMsg"):
+            rows = [{
+                "message": status["ErrorMsg"],
+                "line": None, "column": None,
+            }]
+        if not rows:
+            # The sobject GET sometimes returns the request with
+            # its diagnostic fields empty; re-read them via SOQL,
+            # which returns the long-text fields in full.
+            try:
+                q = sf.toolingexecute(
+                    "query/",
+                    params={"q": (
+                        "SELECT State, ErrorMsg, CompilerErrors "
+                        "FROM ContainerAsyncRequest "
+                        f"WHERE Id = '{request_id}'"
+                    )},
+                )
+                recs = (q or {}).get("records") or []
+                if recs:
+                    rows = _parse_compiler_errors(recs[0].get("CompilerErrors"))
+                    from_compiler = bool(rows)
+                    if not rows and recs[0].get("ErrorMsg"):
+                        rows = [{
+                            "message": recs[0]["ErrorMsg"],
+                            "line": None, "column": None,
+                        }]
+            except Exception:
+                pass
+        if rows:
+            # Keep terminal diagnostics attached to the accepted request.
+            raise ToolingDeployError(rows, compile_failure=from_compiler)
+        raise ToolingDeployError([{
+            "message": (
+                f"Apex compilation {state.lower()}, but Salesforce "
+                f"returned no error detail for the request "
+                f"(ContainerAsyncRequest {request_id})."
+            ),
+            "line": None, "column": None,
+        }])
+    return state or "Pending"
+
+
+def _metadata_state(sf, async_id):
+    state, state_detail, deployment_detail, unit_test_detail = (
+        sf.mdapi.check_deploy_status(async_id)
+    )
+    if state in _MDAPI_DONE_STATES:
+        return None
+    if state in _MDAPI_FAIL_STATES:
+        # check_deploy_status returns detail DICTS:
+        #   deployment_detail = {"errors": [{type, file, status,
+        #       message}], "failed_count": ..., ...}
+        #   unit_test_detail  = {"errors": [{class, method, message,
+        #       stack_trace}], ...}
+        rows = []
+        comp_errors = deployment_detail
+        if isinstance(comp_errors, dict):
+            comp_errors = comp_errors.get("errors") or []
+        for d in comp_errors or []:
+            if isinstance(d, dict) and d.get("message"):
+                where = f"{d['file']}: " if d.get("file") else ""
+                translated, ref = translate_platform_message(
+                    str(d["message"]))
+                row = {
+                    "message": where + translated,
                     "line": None, "column": None,
-                }])
-            if time.time() >= deadline:
-                raise ToolingDeployError([{
-                    "message": (
-                        f"Apex compilation did not finish within "
-                        f"{int(timeout_s)}s (last state: {state or 'unknown'})."
-                    ),
+                }
+                if ref:
+                    row["ref"] = ref
+                if d.get("file"):
+                    row["file"] = d["file"]
+                rows.append(row)
+        test_errors = unit_test_detail
+        if isinstance(test_errors, dict):
+            test_errors = test_errors.get("errors") or []
+        for t in test_errors or []:
+            if isinstance(t, dict) and t.get("message"):
+                label = ".".join(
+                    x for x in [t.get("class"), t.get("method")] if x
+                )
+                rows.append({
+                    "message": f"Test failure {label}: {t['message']}",
                     "line": None, "column": None,
-                }])
-            time.sleep(poll_s)
-    finally:
-        # Best-effort cleanup — a leftover container blocks nothing, but a
-        # pile of them clutters the org and container names must stay free.
+                })
+        if not rows and state_detail:
+            rows = [{
+                "message": str(state_detail),
+                "line": None, "column": None,
+            }]
+        if not rows:
+            rows = [{
+                "message": (
+                    f"Metadata deployment {state}, but Salesforce "
+                    "returned no error detail."
+                ),
+                "line": None, "column": None,
+            }]
+        raise ToolingDeployError(rows, compile_failure=(state == "Failed"))
+    return state or "Pending"
+
+
+def _deployment_state(sf, job):
+    if job["api"] == "Tooling":
+        return _tooling_state(sf, job["id"])
+    with _soap_headers(sf):
+        return _metadata_state(sf, job["id"])
+
+
+def _wait_for_deployment(sf, job, timeout_s, poll_s):
+    deadline = time.monotonic() + timeout_s
+    while True:
         try:
-            sf.toolingexecute(
-                f"sobjects/MetadataContainer/{container_id}", method="DELETE"
-            )
-        except Exception:
-            pass
+            state = _deployment_state(sf, job)
+        except ToolingDeployError:
+            raise
+        except Exception as exc:
+            raise DeploymentPending(job, "Status temporarily unavailable") from exc
+        if state is None:
+            return
+        if time.monotonic() >= deadline:
+            raise DeploymentPending(job, state)
+        time.sleep(poll_s)
+
+
+def check_deployment_status(sf, job):
+    """Poll the accepted job once; never submit source from this path."""
+    try:
+        state = _deployment_state(sf, job)
+    except ToolingDeployError:
+        if job.get("container"):
+            _remove_container(sf, job["container"])
+        raise
+    if state is None and job.get("container"):
+        _remove_container(sf, job["container"])
+    return state
 
 
 def _package_xml(member_name: str, api_version: str,
@@ -789,89 +1010,20 @@ def _mdapi_deploy_zip(sf, buffer, timeout_s: float, poll_s: float) -> None:
     afterwards: simple-salesforce's raw SOAP calls mutate them.
     """
     sandbox = getattr(sf, "domain", "") == "test"
-    # simple-salesforce's raw SOAP deploy calls MUTATE the
-    # connection's shared headers dict (Content-Type becomes text/xml,
-    # plus a stray SOAPAction), which then breaks every later
-    # REST/Tooling call in the session: "MediaType of 'text/xml' is
-    # not supported by this resource". Snapshot the headers and
-    # restore them afterwards, whatever happens.
+    with _soap_headers(sf):
+        async_id, _state = sf.mdapi.deploy(buffer, sandbox)
+    if not async_id:
+        raise ToolingDeployError([{"message": "Metadata API returned no deployment ID."}])
+    _wait_for_deployment(sf, {"api": "Metadata", "id": async_id}, timeout_s, poll_s)
+
+
+@contextmanager
+def _soap_headers(sf):
+    """Restore the REST connection's shared headers after each SOAP call."""
     _headers = getattr(sf, "headers", None)
     _saved_headers = dict(_headers) if isinstance(_headers, dict) else None
     try:
-        async_id, _state = sf.mdapi.deploy(buffer, sandbox)
-        if not async_id:
-            raise ToolingDeployError([{
-                "message": "Metadata API deploy returned no async Id.",
-                "line": None, "column": None,
-            }])
-        deadline = time.time() + timeout_s
-        while True:
-            state, state_detail, deployment_detail, unit_test_detail = (
-                sf.mdapi.check_deploy_status(async_id)
-            )
-            if state in _MDAPI_DONE_STATES:
-                return
-            if state in _MDAPI_FAIL_STATES:
-                # check_deploy_status returns detail DICTS:
-                #   deployment_detail = {"errors": [{type, file, status,
-                #       message}], "failed_count": ..., ...}
-                #   unit_test_detail  = {"errors": [{class, method, message,
-                #       stack_trace}], ...}
-                rows = []
-                comp_errors = deployment_detail
-                if isinstance(comp_errors, dict):
-                    comp_errors = comp_errors.get("errors") or []
-                for d in comp_errors or []:
-                    if isinstance(d, dict) and d.get("message"):
-                        where = f"{d['file']}: " if d.get("file") else ""
-                        translated, ref = translate_platform_message(
-                            str(d["message"]))
-                        row = {
-                            "message": where + translated,
-                            "line": None, "column": None,
-                        }
-                        if ref:
-                            row["ref"] = ref
-                        if d.get("file"):
-                            row["file"] = d["file"]
-                        rows.append(row)
-                test_errors = unit_test_detail
-                if isinstance(test_errors, dict):
-                    test_errors = test_errors.get("errors") or []
-                for t in test_errors or []:
-                    if isinstance(t, dict) and t.get("message"):
-                        label = ".".join(
-                            x for x in [t.get("class"), t.get("method")] if x
-                        )
-                        rows.append({
-                            "message": f"Test failure {label}: {t['message']}",
-                            "line": None, "column": None,
-                        })
-                if not rows and state_detail:
-                    rows = [{
-                        "message": str(state_detail),
-                        "line": None, "column": None,
-                    }]
-                if not rows:
-                    rows = [{
-                        "message": (
-                            f"Metadata deployment {state}, but Salesforce "
-                            "returned no error detail."
-                        ),
-                        "line": None, "column": None,
-                    }]
-                raise ToolingDeployError(rows, compile_failure=(state == "Failed"))
-            if time.time() >= deadline:
-                raise ToolingDeployError([{
-                    "message": (
-                        f"Metadata deployment did not finish within "
-                        f"{int(timeout_s)}s (last state: {state or 'unknown'}). It "
-                        "may still complete on the server — check Setup → "
-                        "Deployment Status before retrying."
-                    ),
-                    "line": None, "column": None,
-                }])
-            time.sleep(poll_s)
+        yield
     finally:
         if _saved_headers is not None:
             _headers.clear()
@@ -964,7 +1116,7 @@ def deploy_apex_body(sf, class_id: str, body: str, *,
                                timeout_s=timeout_s, poll_s=poll_s)
         return "tooling"
     except ToolingDeployError as exc:
-        if exc.compile_failure:
+        if not exc.allow_fallback:
             raise
         container_rows = exc.rows
     version = str(api_version or getattr(sf, "sf_version", "") or "59.0")
@@ -973,6 +1125,8 @@ def deploy_apex_body(sf, class_id: str, body: str, *,
                               metadata_type=metadata_type, folder=folder,
                               extension=extension, status=status)
         return "metadata"
+    except DeploymentPending:
+        raise
     except ToolingDeployError as md_exc:
         rows = (
             [{"message": "Tooling container deploy was rejected:",

@@ -373,6 +373,7 @@ _ACE_POLISH_JS = """
 # Workspace + component lists
 # ------------------------------------------------------------
 ws: dict = st.session_state.setdefault("cc_ws", {})
+jobs: dict = st.session_state.setdefault("cc_deployment_jobs", {})
 unsaved: dict = st.session_state.setdefault("cc_unsaved", {})
 
 # Pending UI operations: button handlers run AFTER the widgets they touch
@@ -603,6 +604,57 @@ def _close_file(key: str) -> None:
         _queue_state(cc_dd_file="")
 
 
+# Ace keeps unapplied keystrokes inside its iframe. Capture its current buffer
+# on the close click, before Streamlit reruns or unmounts the selected editor.
+_ace_close = st.components.v2.component(
+    "sf_cloud_code_close",
+    html='<button type="button" title="Close file" aria-label="Close file">×</button>',
+    css="""
+        button { color: var(--st-text-color); background: var(--st-background-color);
+          border: 1px solid var(--st-border-color, #8888); border-radius: .5rem;
+          min-width: 2.5rem; min-height: 2.5rem; cursor: pointer; font: inherit;
+          font-size: 1.2rem; }
+        button:hover, button:focus-visible { border-color: var(--st-primary-color);
+          color: var(--st-primary-color); }
+    """,
+    js="""
+        export default function ({parentElement, setTriggerValue}) {
+          const button = parentElement.querySelector("button");
+          button.onclick = () => {
+            let text = null;
+            try {
+              const frames = document.querySelectorAll('iframe[src*="streamlit_ace"]');
+              for (const frame of frames) {
+                const el = frame.contentDocument?.querySelector('.ace_editor');
+                const editor = el?.env?.editor;
+                if (editor && frame.getClientRects().length) { text = editor.getValue(); break; }
+              }
+            } catch (_) { /* Ask before discarding an unreadable buffer. */ }
+            setTriggerValue("close", {text});
+          };
+        }
+    """,
+)
+
+
+def _has_local_work(key):
+    entry = ws[key]
+    ace_key = f"cc_ace_editor#{key}#{st.session_state.get('cc_editor_gen', 0)}"
+    values = (unsaved.get(key), st.session_state.get(f"cc_editor_{key}"),
+              st.session_state.get(ace_key))
+    return bool(cc.file_status(entry)) or any(isinstance(v, str) and v != entry["current"] for v in values)
+
+
+@st.dialog("Close file?")
+def _confirm_close(key):
+    st.write(f"Discard the local workspace copy of {_display_name(ws[key])}?")
+    if st.button("Keep editing", type="primary", key="cc_keep_editing"):
+        st.rerun()
+    if st.button("Discard local changes and close", key="cc_confirm_close"):
+        _close_file(key)
+        st.rerun()
+
+
 # ------------------------------------------------------------
 # Create dialogs
 # ------------------------------------------------------------
@@ -645,7 +697,7 @@ def _new_trigger_dialog() -> None:
             format_func=lambda n: "Select an object…" if n == "" else n,
         )
     else:
-        st.caption("⚠️ Could not load the object list — type the API name instead.")
+        st.caption(":material/warning: Could not load the object list — type the API name instead.")
         sobject = st.text_input("Object API name", placeholder="e.g. Account").strip()
     problem = cc.validate_trigger_name(name) if name else None
     if name and not problem and (
@@ -922,9 +974,30 @@ with picker:
                     f"Close {label} — removes it from the workspace only; "
                     "the file in the org is untouched"
                 )
-                if st.button(":material/close_small:", key=f"cc_close_{key}", width="content", help=close_help):
-                    _close_file(key)
-                    st.rerun()
+                unknown_buffer = False
+                if key == selected and _ACE_AVAILABLE:
+                    event = _ace_close(key=f"cc_close_live_{key}", on_close_change=lambda: None).close
+                    clicked = event is not None
+                    if clicked:
+                        text = event.get("text")
+                        unknown_buffer = text is None
+                        if text is not None:
+                            if text != entry["current"]:
+                                unsaved[key] = text
+                            else:
+                                unsaved.pop(key, None)
+                            st.session_state[f"cc_editor_{key}"] = text
+                            # Reseed from exactly the captured buffer on Keep editing.
+                            st.session_state["cc_editor_gen"] = st.session_state.get("cc_editor_gen", 0) + 1
+                else:
+                    clicked = st.button(":material/close_small:", key=f"cc_close_{key}",
+                                        width="content", help=close_help)
+                if clicked:
+                    if unknown_buffer or _has_local_work(key):
+                        _confirm_close(key)
+                    else:
+                        _close_file(key)
+                        st.rerun()
 
     apex_keys = sorted(
         (k for k, e in ws.items() if e["kind"] == "apex"),
@@ -1056,10 +1129,136 @@ def _attach_ref_lines(rows: list[dict], sources_by_name: dict[str, str]) -> None
                 break
 
 
+def _component_key(key):
+    entry = ws[key]
+    return ("lwc:" + entry["bundle"]) if entry["kind"] == "lwc" else key
+
+
+def _blocked_component(key):
+    keys = _bundle_file_keys(ws[key]["bundle"]) if ws[key]["kind"] == "lwc" else [key]
+    return any(ws[k].get("conflict") or ws[k].get("manual_merge") for k in keys)
+
+
+def _whole_bundle(key, targets):
+    return ws[key]["kind"] == "lwc" and any(e.get("is_new") or e.get("org_deleted") for e in targets)
+
+
+def _write_set(key, targets):
+    if _whole_bundle(key, targets):
+        return [ws[k] for k in _bundle_file_keys(ws[key]["bundle"])]
+    return targets
+
+
+def _preflight(key, entries, resources=None, bundle_id=None):
+    """Read every target before issuing any write. Route conflicts to the editor."""
+    first = None
+    for e in entries:
+        k = cc.lwc_key(e["bundle"], e["file_name"]) if e["kind"] == "lwc" else key
+        if e.get("namespace"):
+            raise ValueError(f"{e['file_name']} belongs to a managed package.")
+        if e.get("manual_merge") or e.get("conflict"):
+            first = first or k
+            continue
+        if resources is not None:
+            remote = resources.get(e["file_name"])
+            fresh = ({"body": remote["source"], "last_modified": remote["last_modified"]}
+                     if remote else None)
+            replacement = remote and remote["id"] != e.get("id")
+        elif e.get("is_new") or e.get("org_deleted"):
+            # Tooling POST creates only. A name collision is rejected by Salesforce.
+            continue
+        else:
+            replacement = False
+            try:
+                fresh = cc.read_deploy_baseline(sf, e)
+            except Exception as exc:
+                if not cc.is_gone_error(exc):
+                    raise
+                fresh = None
+        if fresh is None:
+            if not e.get("is_new") and not e.get("org_deleted"):
+                e["org_deleted"] = True
+                st.session_state[f"cc_feedback_{k}"] = (
+                    "warning", "This file was deleted in the org. Review the local copy before choosing Deploy to recreate it.")
+                first = first or k
+            continue
+        meta_changed = any(e.get(f) and fresh.get(f) and str(e[f]) != str(fresh[f])
+                           for f in ("status", "api_version", "sobject"))
+        if replacement or fresh["body"] != e["original"] or meta_changed:
+            if resources is not None:
+                e.update(id=remote["id"], bundle_id=bundle_id, is_new=False, org_deleted=False)
+            for f in ("status", "api_version", "sobject"):
+                if fresh.get(f) is not None:
+                    e[f] = fresh[f]
+            e.update(conflict=True, server_copy=fresh["body"],
+                     server_modified_latest=fresh["last_modified"])
+            first = first or k
+    if first:
+        _select_from_workspace(first)
+        _queue_state(**{f"cc_diff_{first}": True})
+    return first is None
+
+
+def _bundle_snapshot(name):
+    bundle = next((b for b in cc.list_lwc_bundles(sf)
+                   if b["name"].lower() == name.lower() and not b.get("namespace")), None)
+    if not bundle:
+        return None, {}
+    files = cc.fetch_lwc_resources(sf, bundle["id"])
+    by_name = {r["file_name"]: r for r in files}
+    if len(by_name) != len(files):
+        raise ValueError("This bundle has duplicate file names in different folders. The workspace cannot map them unambiguously.")
+    return bundle["id"], by_name
+
+
+def _track_deployment(key, entries, pending):
+    snapshots = {k: e["current"] for k, e in ws.items() if any(e is item for item in entries)}
+    jobs[_component_key(key)] = dict(request=pending.job, state=pending.state, sources=snapshots,
+                                     kind=ws[key]["kind"], bundle=ws[key].get("bundle"))
+
+
+def _check_job(component, job):
+    try:
+        if not job.get("completed"):
+            state = cc.check_deployment_status(sf, job["request"])
+            if state:
+                job["state"] = state
+                return
+            job["completed"] = True
+            job["state"] = "Completed — syncing workspace"
+        if job["kind"] == "lwc":
+            bundle_id, files = _bundle_snapshot(job["bundle"])
+            if not bundle_id or any(ws[k]["file_name"] not in files for k in job["sources"] if k in ws):
+                raise RuntimeError("Salesforce has not returned all deployed resource IDs yet.")
+        for k, submitted in job["sources"].items():
+            if k not in ws:
+                continue
+            e = ws[k]
+            if job["kind"] == "lwc":
+                r = files[e["file_name"]]
+                e.update(id=r["id"], bundle_id=bundle_id, server_modified=r["last_modified"])
+            # Keep drafts edited while waiting. A subsequent preflight compares
+            # against the snapshot that actually reached Salesforce.
+            e.update(original=submitted, is_new=False, org_deleted=False)
+        del jobs[component]
+        st.toast("Deployment completed.", icon=":material/task_alt:")
+    except cc.ToolingDeployError as exc:
+        del jobs[component]
+        rows = cc.parse_deploy_error(exc)
+        target = next((k for k in job["sources"] if k in ws), None)
+        if target:
+            st.session_state[f"cc_feedback_{target}"] = ("error", rows)
+            _select_from_workspace(target)
+        else:
+            st.session_state["cc_job_error"] = rows
+    except Exception as exc:
+        job["state"] = f"Status check needs another attempt: {exc}"
+
+
 def _deploy_component(key: str) -> None:
     """Push every saved change of the component (class, or whole bundle)."""
     targets = _deploy_targets(key)
-    if not targets:
+    if not can_deploy or not targets or _blocked_component(key) or _component_key(key) in jobs:
         return
     deployed: list[str] = []
     used_metadata = False
@@ -1069,14 +1268,19 @@ def _deploy_component(key: str) -> None:
         # cc.deploy_lwc_bundle_mdapi) — the first file lands and every
         # later file fails with "No MODULE named". Tooling PATCH stays
         # for pure updates (all targets already deployed).
-        if ws[key]["kind"] == "lwc" and any(
-            e.get("is_new") or e.get("org_deleted") for e in targets
-        ):
+        whole = _whole_bundle(key, targets)
+        entries = _write_set(key, targets)
+        bundle_id, resources = _bundle_snapshot(ws[key]["bundle"]) if whole else (None, None)
+        if not _preflight(key, entries, resources, bundle_id):
+            return
+        if whole:
             bundle_name = ws[key]["bundle"]
-            bundle_files = {
-                ws[k]["file_name"]: ws[k]["current"]
-                for k in _bundle_file_keys(bundle_name)
-            }
+            paths = {name: r["file_path"].removeprefix("lwc/").removeprefix(bundle_name + "/")
+                     for name, r in resources.items()}
+            bundle_files = {paths[name]: r["source"] for name, r in resources.items()}
+            for e in entries:
+                name = e["file_name"]
+                bundle_files[paths.get(name, name)] = e["current"]
             meta_entry = next(
                 (e for e in ws.values()
                  if e["kind"] == "lwc" and e.get("bundle") == bundle_name
@@ -1091,6 +1295,9 @@ def _deploy_component(key: str) -> None:
                 cc.deploy_lwc_bundle_mdapi(
                     sf, bundle_name, bundle_files, str(metadata["apiVersion"])
                 )
+            except cc.DeploymentPending as pending:
+                _track_deployment(key, entries, pending)
+                return
             except Exception as exc:
                 rows = [{"message": "Failed to deploy the "
                                     f"**{bundle_name}** bundle via the "
@@ -1106,7 +1313,7 @@ def _deploy_component(key: str) -> None:
             try:
                 bundle_rec = next(
                     (b for b in cc.list_lwc_bundles(sf)
-                     if b["name"] == bundle_name),
+                     if b["name"] == bundle_name and not b.get("namespace")),
                     None,
                 )
                 resources = (
@@ -1212,6 +1419,8 @@ def _deploy_component(key: str) -> None:
                 "rejected the Tooling container path)."
             )
         st.session_state[f"cc_feedback_{key}"] = ("success", success_msg)
+    except cc.DeploymentPending as pending:
+        _track_deployment(key, [e], pending)
     except Exception as exc:
         rows = cc.parse_deploy_error(exc)
         failing_entry = targets[len(deployed)] if len(deployed) < len(targets) else None
@@ -1295,94 +1504,14 @@ def _refetch(key: str) -> None:
     _bump_editor_gen()
 
 
-def _merge_three_way(base: str, server: str, draft: str,
-                     mark_open: str = "//", mark_close: str = "") -> tuple[str, int]:
-    """Three-way line merge of the server copy and the saved draft against
-    their common ancestor (the previously fetched copy).
-
-    - A region changed by only one side is taken from that side.
-    - A region changed identically by both sides is taken once.
-    - A region changed differently by both sides keeps BOTH versions,
-      wrapped in comment markers, and counts as one manual conflict.
-    Returns (merged_text, manual_conflict_count). Nothing is silently
-    overwritten: the caller reports the count so the user knows review
-    is required, and the markers stay in the code until edited out.
-    """
-    import difflib
-
-    base_lines = base.split("\n")
-    server_lines = server.split("\n")
-    draft_lines = draft.split("\n")
-
-    def _hunks(lines: list[str]) -> list[tuple[int, int, list[str]]]:
-        out = []
-        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
-                None, base_lines, lines).get_opcodes():
-            if tag != "equal":
-                out.append((i1, i2, lines[j1:j2]))
-        return out
-
-    # (base_start, base_end, side, replacement) — side 0 = server, 1 = draft.
-    all_hunks = [(s, e, 0, rep) for (s, e, rep) in _hunks(server_lines)]
-    all_hunks += [(s, e, 1, rep) for (s, e, rep) in _hunks(draft_lines)]
-    all_hunks.sort(key=lambda h: (h[0], h[1], h[2]))
-
-    def _overlaps(a: tuple, b: tuple) -> bool:
-        s1, e1, s2, e2 = a[0], a[1], b[0], b[1]
-        if s1 == e1 and s2 == e2:
-            return s1 == s2  # two insertions at the same point
-        if s1 == e1:
-            return s2 <= s1 < e2  # insertion inside the other's span
-        if s2 == e2:
-            return s1 <= s2 < e1
-        return s1 < e2 and s2 < e1
-
-    merged: list[str] = []
-    conflicts = 0
-    i = 0  # next untouched base line
-    k = 0
-    while k < len(all_hunks):
-        group = [all_hunks[k]]
-        k += 1
-        grown = True
-        while grown and k < len(all_hunks):
-            grown = False
-            for h in group:
-                if _overlaps(h, all_hunks[k]):
-                    group.append(all_hunks[k])
-                    k += 1
-                    grown = True
-                    break
-        g_start = min(h[0] for h in group)
-        g_end = max(h[1] for h in group)
-        if g_start > i:
-            merged.extend(base_lines[i:g_start])
-        if len({h[2] for h in group}) == 1:
-            for h in sorted(group, key=lambda x: (x[0], x[1])):
-                merged.extend(h[3])
-        else:
-            srv_rep: list[str] = []
-            dft_rep: list[str] = []
-            for h in sorted(group, key=lambda x: (x[2], x[0], x[1])):
-                (srv_rep if h[2] == 0 else dft_rep).extend(h[3])
-            if srv_rep == dft_rep:
-                merged.extend(srv_rep)
-            else:
-                conflicts += 1
-                merged.append(
-                    f"{mark_open} <<<<<<< SERVER VERSION "
-                    f"(manual resolution required){mark_close}")
-                merged.extend(srv_rep)
-                merged.append(f"{mark_open} ======={mark_close}")
-                merged.extend(dft_rep)
-                merged.append(
-                    f"{mark_open} >>>>>>> DRAFT VERSION "
-                    f"(manual resolution required){mark_close}")
-        i = max(i, g_end)
-    if i < len(base_lines):
-        merged.extend(base_lines[i:])
-    return "\n".join(merged), conflicts
-
+for component, job in list(jobs.items()):
+    req = job["request"]
+    st.info(f"{component} · {req['api']} request `{req['id']}` · {job['state']}")
+    if st.button("Check deployment status", key=f"cc_check_{component}"):
+        _check_job(component, job)
+        st.rerun()
+for row in st.session_state.pop("cc_job_error", []):
+    st.error(row["message"])
 
 with editor:
     if not selected or selected not in ws:
@@ -1517,6 +1646,9 @@ with editor:
                         loc += " — "
                     st.markdown(f"- {loc}{_html.escape(row['message'])}")
 
+        if entry.get("manual_merge"):
+            st.warning(":material/warning: Resolve the marked sections in the editor, remove the merge markers, and save the draft to enable deployment.")
+
         # ----- conflict resolution -----
         if entry.get("conflict") and entry.get("server_copy") is not None:
             st.warning(
@@ -1527,6 +1659,7 @@ with editor:
             c1, c2, c3, _ = st.columns([1.3, 1.3, 1.6, 0.4])
             with c1:
                 if st.button(":material/arrow_downward_alt: Use server copy", width="stretch"):
+                    entry.pop("manual_merge", None)
                     entry["original"] = entry["current"] = entry["server_copy"]
                     entry["server_modified"] = entry.get("server_modified_latest", entry["server_modified"])
                     entry["server_copy"] = None
@@ -1553,7 +1686,7 @@ with editor:
                         _mo, _mc = "/*", " */"
                     else:  # Apex, JS
                         _mo, _mc = "//", ""
-                    merged, n_conf = _merge_three_way(
+                    merged, n_conf = cc.merge_three_way(
                         entry["original"], entry["server_copy"],
                         entry["current"], _mo, _mc)
                     entry["current"] = merged
@@ -1562,6 +1695,7 @@ with editor:
                     entry["server_copy"] = None
                     entry["conflict"] = False
                     _reset_editor_widget(selected)
+                    entry["manual_merge"] = bool(n_conf)
                     if n_conf:
                         st.session_state[f"cc_feedback_{selected}"] = (
                             "warning",
@@ -1631,16 +1765,9 @@ with editor:
                 auto_update=False,
             )
             _live_text = _ace_text if _ace_text is not None else _seed_text
-            if _seed_text != st.session_state.get("cc_editor_seed"):
-                # The seed just changed (file switch, revert, refetch,
-                # conflict resolution): the component's value this run
-                # is still the previous file's text — ignore it, or it
-                # would be stashed into the wrong file. The editor
-                # re-syncs from the new value prop; the next run's
-                # value is trustworthy again.
-                _live_text = _seed_text
-            st.session_state["cc_editor_seed"] = _seed_text
-            if _live_text != _seed_text:
+            if _live_text == entry["current"]:
+                unsaved.pop(selected, None)
+            else:
                 unsaved[selected] = _live_text
             widget_text = _live_text
             has_unsaved = widget_text != entry["current"]
@@ -1654,8 +1781,7 @@ with editor:
             st.session_state[editor_key] = _live_text
             st.iframe(_ACE_POLISH_JS, height=1)
             st.caption(
-                ":material/keyboard: **Ctrl+Enter** in the editor applies your edits "
-                "(or use its Apply button) — then **Save draft** below."
+                ":material/keyboard: Press **Ctrl+Enter** in the editor to apply your edits, then choose **Save draft**."
             )
         else:
             def _stash_editor(k=selected, ek=editor_key) -> None:
@@ -1688,13 +1814,15 @@ with editor:
 
         # ----- actions -----
         targets = _deploy_targets(selected)
-        blocked_by_conflict = any(e.get("conflict") for e in targets)
+        blocked_by_conflict = _blocked_component(selected)
 
         a1, a2, a3, a4 = st.columns(4)
         with a1:
             if st.button(":material/save: Save draft", width="stretch",
                          disabled=not (editable and has_unsaved)):
                 entry["current"] = widget_text
+                if entry.get("manual_merge") and not cc.has_merge_markers(widget_text):
+                    entry.pop("manual_merge", None)
                 unsaved.pop(selected, None)
                 st.session_state[f"cc_feedback_{selected}"] = (
                     "success",
@@ -1704,7 +1832,7 @@ with editor:
                 _panel_rerun = True
         with a2:
             if st.button(":material/rocket: Deploy", type="primary", width="stretch",
-                         disabled=not (can_deploy and targets and not blocked_by_conflict)):
+                         disabled=not (can_deploy and targets and not blocked_by_conflict and _component_key(selected) not in jobs)):
                 # Queue the deploy: it runs at the top of the editor panel
                 # on the next run so the spinner renders inside the panel,
                 # aligned with the code — not floating under these buttons.
@@ -1714,6 +1842,7 @@ with editor:
             if st.button(":material/undo: Revert", width="stretch",
                          disabled=entry["current"] == entry["original"] and not has_unsaved):
                 entry["current"] = entry["original"]
+                entry.pop("manual_merge", None)
                 _reset_editor_widget(selected)
                 _panel_rerun = True
         with a4:
