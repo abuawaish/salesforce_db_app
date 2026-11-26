@@ -1,0 +1,14 @@
+<div class="editor">
+  <label for="soql">SOQL Query (SELECT only)</label>
+  <textarea id="soql" rows="4" spellcheck="false" autocapitalize="off" autocomplete="off"
+    aria-autocomplete="list" aria-controls="choices" aria-describedby="hint"
+    placeholder="Enter a valid SOQL SELECT query here (e.g., SELECT Id, Name FROM Account LIMIT 10)"></textarea>
+  <div class="mirror" aria-hidden="true"></div>
+  <div class="popup" popover="manual" hidden>
+    <div id="choices" role="listbox" aria-label="SOQL suggestions"><div class="track"></div></div>
+    <div class="status" role="status"></div>
+  </div>
+  <p class="unavailable" role="status" hidden>Salesforce metadata is unavailable. You can still run a query or use Refresh Data to retry.</p>
+  <p id="hint">💡 Press Ctrl+Enter to submit the query. Queries without a LIMIT run with LIMIT 1000 by default.</p>
+  <button type="button" class="run">🚀 Run Query</button>
+</div>

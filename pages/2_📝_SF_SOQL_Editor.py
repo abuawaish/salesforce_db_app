@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
-import json
 import os
 import re
 from openai import OpenAI
+from soql_results import result_frame
+from soql_autocomplete import prepare_catalog, render_editor, replace_draft
 from permissions import render_access_mode_toggle, require_admin_mode
 
 # ------------------------------------------------------------
@@ -38,16 +39,7 @@ with st.sidebar:
 # ------------------------------------------------------------
 # Session-state caches (shared with Field Analysis page)
 # ------------------------------------------------------------
-# Describe results keyed by object name — fetched once, reused instantly
-# across both this page and Field Analysis.
-if "fa_describe_cache" not in st.session_state:
-    st.session_state["fa_describe_cache"] = {}
-
-# Global object list — fetched once per session.
-if "fa_all_objects" not in st.session_state:
-    st.session_state["fa_all_objects"] = sorted(
-        obj["name"] for obj in sf.describe()["sobjects"]
-    )
+prepare_catalog(sf)
 
 # ------------------------------------------------------------
 # Constant for delete checkbox column name
@@ -343,71 +335,13 @@ def add_query_history(query: str):
 def select_history_query():
     selected_query = st.session_state.soql_history_selector
     if selected_query and selected_query != "-- Select a previously executed query --":
-        st.session_state.soql_query_input = selected_query
+        replace_draft(selected_query)
 
 
 def clear_query_history():
     st.session_state.soql_history = []
     st.session_state.soql_history_selector = "-- Select a previously executed query --"
-    st.session_state.soql_query_input = ""
-
-
-def explode_soql_record(record: dict) -> list:
-    """
-    Flattens a single SOQL result record into one or more "rows" (dicts).
-
-    Parent relationship lookups flatten into dotted column names on the same row.
-
-    Child relationship subqueries are exploded into one output row per child
-    record, with parent fields repeated.
-    """
-    record = dict(record)
-    record.pop("attributes", None)
-
-    flat_parent = {}
-    child_relationships = {}
-
-    for key, value in record.items():
-        if isinstance(value, dict) and "records" in value and "totalSize" in value:
-            child_relationships[key] = value.get("records") or []
-        elif isinstance(value, dict):
-            for sub_k, sub_v in value.items():
-                if sub_k == "attributes":
-                    continue
-                flat_parent[f"{key}.{sub_k}"] = sub_v
-        else:
-            flat_parent[key] = value
-
-    if not child_relationships:
-        return [flat_parent]
-
-    rows = [dict(flat_parent)]
-
-    for rel_name, children in child_relationships.items():
-        new_rows = []
-
-        if not children:
-            new_rows = [dict(r) for r in rows]
-        else:
-            for child in children:
-                child = dict(child)
-                child.pop("attributes", None)
-                flat_child = {f"{rel_name}.{k}": v for k, v in child.items()}
-
-                for base_row in rows:
-                    merged = dict(base_row)
-                    merged.update(flat_child)
-                    new_rows.append(merged)
-
-        rows = new_rows
-
-    return rows
-
-
-def format_complex_cell(val):
-    if isinstance(val, (dict, list)):
-        return json.dumps(val, indent=2)
-    return val
+    replace_draft("")
 
 
 def clean_nan_for_salesforce(obj):
@@ -1033,7 +967,7 @@ if st.button(":material/wand_stars: Generate SOQL", type="secondary"):
                 generated = generate_soql_from_prompt(selected_object, nl_request)
 
             if generated is not None:
-                st.session_state.soql_query_input = generated
+                replace_draft(generated)
                 show_temporary_message("Query generated — review it below, then click Run Query.", level="success")
 
         except ValueError as e:
@@ -1049,22 +983,11 @@ st.divider()
 # ============================================================
 st.subheader("🔍 1. Run SOQL Query")
 
-with st.form("soql_query_form"):
-    soql = st.text_area(
-        "SOQL Query (SELECT only)",
-        height=120,
-        placeholder="Enter a valid SOQL SELECT query here (e.g., SELECT Id, Name FROM Account LIMIT 10)",
-        key="soql_query_input",
-    )
+render_editor()
+submitted_soql = st.session_state.pop("_soql_execute", None)
 
-    st.caption(
-        "💡 Press Ctrl+Enter to submit the query. Queries without a LIMIT run with LIMIT 1000 by default."
-    )
-
-    run_query_pressed = st.form_submit_button("Run Query", icon=":material/rocket_launch:")
-
-if run_query_pressed:
-    soql = st.session_state.soql_query_input.strip()
+if submitted_soql is not None:
+    soql = submitted_soql.strip()
     if not soql:
         show_temporary_message("Please enter a SOQL query.", level="error")
     else:
@@ -1085,16 +1008,7 @@ if run_query_pressed:
             result = sf.query_all(effective_soql)
             records = result["records"]
 
-            if records:
-                cleaned_records = []
-
-                for rec in records:
-                    cleaned_records.extend(explode_soql_record(rec))
-
-                df = pd.DataFrame(cleaned_records)
-                df = df.map(format_complex_cell)
-            else:
-                df = pd.DataFrame()
+            df = result_frame(records, soql)
 
             st.session_state["query_df"] = df
 
@@ -1152,13 +1066,6 @@ if "query_df" in st.session_state and st.session_state["query_df"] is not None:
 
     if not df.empty:
         st.subheader("📋 Retrieved Fields")
-
-        expanded_prefixes = {col.split(".")[0] for col in df.columns if "." in col}
-        spurious_cols = [col for col in df.columns if col in expanded_prefixes]
-
-        if spurious_cols:
-            df = df.drop(columns=spurious_cols)
-            st.session_state["query_df"] = df
 
         st.caption(f"Columns fetched: {', '.join(df.columns)}")
         st.subheader("📊 Query Results")

@@ -1,0 +1,157 @@
+.editor,
+.popup {
+  --fg: var(--st-text-color, CanvasText);
+  --bg: var(--st-background-color, Canvas);
+  --soft: var(--st-secondary-background-color, Field);
+  --line: color-mix(in srgb, var(--fg) 23%, transparent);
+  --accent: var(--st-primary-color, #ff4b4b);
+
+  color: var(--fg);
+  font-family: var(--st-font, inherit);
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.editor {
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  padding: 1rem;
+}
+
+label {
+  display: block;
+  font-size: .875rem;
+  margin-bottom: .4rem;
+}
+
+textarea,
+.mirror {
+  box-sizing: border-box;
+  font: inherit;
+  line-height: 1.5;
+  letter-spacing: normal;
+  tab-size: 4;
+  padding: .6rem .8rem;
+  border: 1px solid transparent;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+textarea {
+  width: 100%;
+  min-height: 120px;
+  height: 120px;
+  display: block;
+  resize: vertical;
+  border-radius: .5rem;
+  background: var(--soft);
+  color: var(--fg);
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.mirror {
+  position: fixed;
+  visibility: hidden;
+  pointer-events: none;
+  overflow: hidden;
+  margin: 0;
+}
+
+p,
+.status {
+  font-size: .875rem;
+  color: color-mix(in srgb, var(--fg) 72%, var(--bg));
+}
+
+p {
+  margin: .6rem 0 1rem;
+}
+
+.run {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  padding: .4rem .8rem;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.run:hover,
+.run:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.popup {
+  position: fixed;
+  inset: auto;
+  z-index: 10000;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: var(--bg);
+  width: min(23rem, calc(100vw - 16px));
+  box-shadow: 0 5px 18px #0003;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+#choices {
+  max-height: 192px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  position: relative;
+}
+
+.track {
+  position: relative;
+}
+
+.option {
+  box-sizing: border-box;
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 32px;
+  padding: 0 .55rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  border-radius: .28rem;
+}
+
+.option[aria-selected=true] {
+  background: color-mix(in srgb, var(--accent) 17%, var(--bg));
+}
+
+.option span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--st-code-font, monospace);
+  font-size: .88rem;
+}
+
+.option small {
+  opacity: .72;
+  font-size: .75rem;
+}
+
+.status {
+  padding: .25rem .55rem;
+  font-size: .75rem;
+}
+
+.status:empty {
+  display: none;
+}
