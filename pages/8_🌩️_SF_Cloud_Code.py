@@ -604,39 +604,6 @@ def _close_file(key: str) -> None:
         _queue_state(cc_dd_file="")
 
 
-# Ace keeps unapplied keystrokes inside its iframe. Capture its current buffer
-# on the close click, before Streamlit reruns or unmounts the selected editor.
-_ace_close = st.components.v2.component(
-    "sf_cloud_code_close",
-    html='<button type="button" title="Close file" aria-label="Close file">×</button>',
-    css="""
-        button { color: var(--st-text-color); background: var(--st-background-color);
-          border: 1px solid var(--st-border-color, #8888); border-radius: .5rem;
-          min-width: 2.5rem; min-height: 2.5rem; cursor: pointer; font: inherit;
-          font-size: 1.2rem; }
-        button:hover, button:focus-visible { border-color: var(--st-primary-color);
-          color: var(--st-primary-color); }
-    """,
-    js="""
-        export default function ({parentElement, setTriggerValue}) {
-          const button = parentElement.querySelector("button");
-          button.onclick = () => {
-            let text = null;
-            try {
-              const frames = document.querySelectorAll('iframe[src*="streamlit_ace"]');
-              for (const frame of frames) {
-                const el = frame.contentDocument?.querySelector('.ace_editor');
-                const editor = el?.env?.editor;
-                if (editor && frame.getClientRects().length) { text = editor.getValue(); break; }
-              }
-            } catch (_) { /* Ask before discarding an unreadable buffer. */ }
-            setTriggerValue("close", {text});
-          };
-        }
-    """,
-)
-
-
 def _has_local_work(key):
     entry = ws[key]
     ace_key = f"cc_ace_editor#{key}#{st.session_state.get('cc_editor_gen', 0)}"
@@ -974,26 +941,10 @@ with picker:
                     f"Close {label} — removes it from the workspace only; "
                     "the file in the org is untouched"
                 )
-                unknown_buffer = False
-                if key == selected and _ACE_AVAILABLE:
-                    event = _ace_close(key=f"cc_close_live_{key}", on_close_change=lambda: None).close
-                    clicked = event is not None
-                    if clicked:
-                        text = event.get("text")
-                        unknown_buffer = text is None
-                        if text is not None:
-                            if text != entry["current"]:
-                                unsaved[key] = text
-                            else:
-                                unsaved.pop(key, None)
-                            st.session_state[f"cc_editor_{key}"] = text
-                            # Reseed from exactly the captured buffer on Keep editing.
-                            st.session_state["cc_editor_gen"] = st.session_state.get("cc_editor_gen", 0) + 1
-                else:
-                    clicked = st.button(":material/close_small:", key=f"cc_close_{key}",
-                                        width="content", help=close_help)
+                clicked = st.button(":material/close_small:", key=f"cc_close_{key}",
+                                    width="content", help=close_help, wrap=True)
                 if clicked:
-                    if unknown_buffer or _has_local_work(key):
+                    if _has_local_work(key):
                         _confirm_close(key)
                     else:
                         _close_file(key)
