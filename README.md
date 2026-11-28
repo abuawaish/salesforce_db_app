@@ -13,7 +13,7 @@ A Streamlit-based Salesforce toolkit for running SOQL queries, exploring object 
 This app provides a clean, dark-themed interface for:
 
 - Connecting to a Salesforce org using an External Client App's Client ID and Client Secret (OAuth 2.0 Client Credentials flow).
-- Running ad hoc `SELECT` SOQL queries and viewing results in an interactive table.
+- Running ad hoc `SELECT` SOQL queries in an autocomplete editor and viewing results in an interactive table whose columns follow your SELECT list.
 - Using the new “Ask in Plain English” helper to turn natural-language requests into SOQL queries.
 - Chatting with a read-only Salesforce assistant that answers questions about your connected org and about Salesforce in general.
 - Downloading query results as CSV.
@@ -44,9 +44,11 @@ requests a new access token automatically when the old one expires.
 
 Found under the `SF SOQL Editor` page:
 
-- Write any valid `SELECT` SOQL query.
+- Write any valid `SELECT` SOQL query in the autocomplete editor: scope-aware suggestions for objects, fields, relationships, subqueries, operators by field type, date literals, and SOQL keywords, with object metadata loaded on demand as you type.
+- Press **Ctrl+Enter** (or click **Run Query**) to execute; your draft is saved as you work.
 - Use the new “Ask in Plain English” feature to describe the data you want in plain language and generate or refine a SOQL query.
-- Execute the query and show response data in a sortable Streamlit table.
+- Queries without a `LIMIT` run with `LIMIT 1000` by default; query history always keeps the query exactly as you typed it.
+- Execute the query and show response data in a sortable Streamlit table whose columns appear in the order of your SELECT list — selected columns stay visible even when a parent record is empty, multi-level parents (e.g. `Account.Owner.Name`) flatten properly, and aggregate/GROUP BY results keep their dotted names.
 - Support for relationship fields and child relationship expansion in query results.
 - Download query results as a CSV file.
 
@@ -136,7 +138,11 @@ Found under the `Governor Limits` page:
 Found under the `SF Cloud Code` page:
 
 - A browser-based code workspace for Apex classes, Apex triggers, and Lightning Web Component bundles, with an Ace code editor, Git-style change indicators, and diffs against the server copy.
-- Deploy to the org via the Tooling API (container flow) with a Metadata API fallback that preserves the deploy status.
+- Deploy to the org via the Tooling API (container flow) with a Metadata API fallback for cross-reference errors.
+- **Deploy preflight:** before anything is written, every deploy target is re-read from the org. If the server copy changed since fetch, the file is flagged as a conflict with a diff and the deploy is blocked; if it was deleted from the org, it is flagged and blocked too — so a deploy never silently overwrites someone else's change.
+- **Async deployment tracking:** slow deploys no longer fail at timeout. They are tracked as pending jobs with a "Check deployment status" button; when a job completes, the workspace syncs to the deployed copy and any draft you edited while waiting is kept.
+- **Merge safety:** "Accept Both Changes" performs a 3-way merge; unresolved sections keep conflict markers and block deployment until the markers are removed and the draft is saved.
+- **Close-file safety:** closing a file with local work asks for confirmation before discarding it.
 - **Triggers:** pick the trigger's object straight from the org (REST global describe, triggerable objects only including custom `__c` objects; API names only; type or refresh to narrow the list), and deploy triggers as Active.
 - **LWC:** new or partial bundles deploy as one atomic Metadata API zip (package.xml plus every bundle file, using the apiVersion from the bundle's own `.js-meta.xml`); pure updates go through Tooling PATCH.
 - **Deleted-from-org detection:** if Refetch returns a 404, the file is flagged DELETED (🗑️ D) with a local-copy-intact warning and the stale server timestamp hidden; Deploy then recreates it and adopts the new Id (fully for Apex/triggers; a deleted LWC file is recreated into its existing bundle).
@@ -198,6 +204,8 @@ The project is organized around a main app entry point, a small set of shared ut
 - `permissions.py` - Shared helpers for loading Salesforce profile permissions, applying read-only safeguards, and controlling access to admin-level features.
 - `pages/1_⚙️_Configuration.py` - Connection setup page for authenticating to Salesforce and selecting the environment.
 - `pages/2_📝_SF_SOQL_Editor.py` - SOQL editor for running queries, viewing results, and managing records inline.
+- `soql_autocomplete/` - Custom editor component for Section 1 of the SOQL Editor: scope-aware SOQL suggestions (objects, fields, relationships, subqueries) with object metadata loaded on demand and cached per connection.
+- `soql_results.py` - Builds the Section 1 results table: columns in SELECT-list order, relationship flattening (including multi-level parents and child subqueries), and aggregate/GROUP BY column naming.
 - `pages/3_📊_Field_Analysis.py` - Metadata explorer for analyzing fields, relationships, picklists, and field type distributions.
 - `pages/4_📦_Object_Manager.py` - Object and field management experience for creating, editing, and configuring custom metadata.
 - `pages/5_👤_Session_Info.py` - Session diagnostics page showing the active connection details and org information.
